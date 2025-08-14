@@ -1,10 +1,13 @@
 """FastAPI application serving the data analyst chatbot."""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
 
-from .schemas import QueryRequest, QueryResponse
-from . import llm_service
+from .api.v1.routes import (
+    users_router,
+    db_connections_router,
+    conversations_router,
+    query_router,
+)
 
 app = FastAPI(title="LLM Data Analyst")
 
@@ -16,24 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.post("/query", response_model=QueryResponse)
-async def query_endpoint(request: QueryRequest) -> QueryResponse:
-    """Handle a natural language data query from the client.
-
-    The endpoint delegates to the LLM to both extract data from the target
-    database and decide which charts to render. The LLM API key is expected in
-    the ``LLM_API_KEY`` environment variable.
-    """
-
-    if not os.getenv("LLM_API_KEY"):
-        raise HTTPException(status_code=500, detail="LLM_API_KEY not configured")
-
-    data = llm_service.extract_data(
-        request.prompt, request.db_connection, request.model_name
-    )
-    charts = llm_service.choose_charts(
-        request.prompt, request.available_charts, data, request.model_name
-    )
-
-    return QueryResponse(charts=charts)
+app.include_router(users_router)
+app.include_router(db_connections_router)
+app.include_router(conversations_router)
+app.include_router(query_router)
