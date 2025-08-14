@@ -12,8 +12,12 @@ React + Vite front end and a FastAPI backend.
 
 ## Structure
 
-- `client/` – React front‑end
-- `server/` – FastAPI application exposing the chatbot API
+- `client/` – React front-end (empty placeholder).
+- `server/` – FastAPI application exposing the chatbot API.
+  - `api/` – route declarations grouped by resource.
+  - `schemas/` – Pydantic models for requests and responses.
+  - `services/` – business logic and database access helpers.
+  - `main.py` – creates the FastAPI app and wires the routes.
 
 ## Running the backend
 
