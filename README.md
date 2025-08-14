@@ -1,11 +1,19 @@
 # llm-data-analyst
 
-Monorepo containing a React client and a FastAPI backend for an LLM-powered data analysis chatbot.
+Full‑stack demo of an LLM‑powered data analysis assistant. The repository contains a
+React + Vite front end and a FastAPI backend.
+
+## Features
+
+- User registration and login with JWT stored in HTTP‑only cookies
+- Manage and enable/disable database connections
+- Create conversations and retrieve full message history
+- Toggleable sidebar for switching conversations and configuring connections
 
 ## Structure
 
-- `client/` – React front-end (empty placeholder).
-- `server/` – FastAPI application exposing the chatbot API.
+- `client/` – React front‑end
+- `server/` – FastAPI application exposing the chatbot API
 
 ## Running the backend
 
@@ -18,29 +26,22 @@ uv sync
 uv run uvicorn server.main:app --reload
 ```
 
-Set the `LLM_API_KEY` environment variable before starting the server. The backend uses
-LangChain's SQLAgent to translate natural language prompts into SQL queries and select
-appropriate charts via the OpenAI API.
+Environment variables:
 
-### API
+- `LLM_API_KEY` – API key for the LLM provider
+- `JWT_SECRET` – secret used to sign JWTs (`change-me` default)
+- `JWT_EXP_SECONDS` – token lifetime in seconds (defaults to one day)
 
-The `/query` endpoint expects a JSON payload:
+## Running the frontend
 
-```json
-{
-  "prompt": "total sales by month",
-  "model_name": "gpt-4.1-mini",
-  "db_connection": {
-    "db_name": "postgres",
-    "user": "postgres",
-    "password": "postgres",
-    "host": "localhost",
-    "port": 5432
-  },
-  "available_charts": ["bar", "line", "pie"]
-}
+```bash
+cd client
+npm install
+npm run dev
 ```
 
-`extract_data` returns a raw JSON array of objects from the database. `choose_charts` uses
-the natural-language request, the available chart types and that JSON data to select chart
-types and shape the data for each chart in the response.
+The client expects the API at `http://localhost:8000`; override with
+`VITE_API_BASE_URL` in a `.env` file if needed.
+
+On first launch, register an account on the login page. After logging in, create a
+database connection from the dropdown to start a conversation and run queries.
