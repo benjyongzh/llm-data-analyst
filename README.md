@@ -32,6 +32,28 @@ Environment variables:
 - `JWT_SECRET` – secret used to sign JWTs (`change-me` default)
 - `JWT_EXP_SECONDS` – token lifetime in seconds (defaults to one day)
 
+## API overview
+
+All routes are served under the `/api/v1` prefix and require a valid
+JWT cookie unless noted.
+
+### Users
+- `POST /users` – register a new user
+- `POST /users/login` – authenticate and receive the JWT cookie
+
+### Database connections
+- `GET /db-connections` – list connections for the current user
+- `POST /db-connections` – create a new connection
+- `PUT /db-connections/{id}` – update a connection
+- `POST /db-connections/{id}/enable` – enable a connection
+- `POST /db-connections/{id}/disable` – disable a connection
+
+### Conversations
+- `GET /conversations` – list conversations for the current user
+- `GET /conversations/{id}` – fetch a conversation with its messages
+- `POST /conversations` – create a conversation
+- `POST /conversations/{id}/query` – send a prompt and receive chart data
+
 ## Running the frontend
 
 ```bash
