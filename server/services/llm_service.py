@@ -9,7 +9,7 @@ from langchain.agents.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
-from .schemas import DBConnection, ChartData
+from ..schemas import DBConnection, ChartData
 
 
 def _build_dsn(conn: DBConnection) -> str:

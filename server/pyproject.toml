@@ -10,4 +10,5 @@ dependencies = [
     "langchain",
     "langchain-community",
     "langchain-openai",
+    "asyncpg",
 ]
