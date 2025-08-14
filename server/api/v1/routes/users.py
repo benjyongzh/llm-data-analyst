@@ -1,12 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Response
 
 from ....schemas import (
     UserCreateRequest,
     UserCreateResponse,
     UserUpdateRequest,
     StatusResponse,
+    LoginRequest,
+    LoginResponse,
 )
 from ....services import user_service
+from ....auth import create_access_token, verify_token, JWT_EXP_SECONDS
 
 router = APIRouter(prefix="/users")
 
@@ -18,9 +21,30 @@ async def create_user(request: UserCreateRequest) -> UserCreateResponse:
 
 
 @router.put("/{user_id}", response_model=StatusResponse)
-async def update_user(user_id: str, request: UserUpdateRequest) -> StatusResponse:
+async def update_user(
+    user_id: str,
+    request: UserUpdateRequest,
+    token_data: dict = Depends(verify_token),
+) -> StatusResponse:
+    if token_data["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     try:
         await user_service.update_user(user_id, request)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return StatusResponse()
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login(response: Response, request: LoginRequest) -> LoginResponse:
+    user = await user_service.authenticate_user(request.username, request.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token(user["user_id"], user["username"])
+    response.set_cookie(
+        "access_token",
+        token,
+        httponly=True,
+        max_age=JWT_EXP_SECONDS,
+    )
+    return LoginResponse(user_id=user["user_id"], username=user["username"])

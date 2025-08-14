@@ -1,9 +1,6 @@
 import json
 from typing import Any, Dict, Optional
 
-import json
-from typing import Any, Dict, Optional
-
 from ..db.database import get_pool
 from ..schemas.db_connection import DBConnection
 
@@ -103,3 +100,44 @@ async def get_context(conversation_id: str, limit: int = 20) -> Dict[str, Any]:
             {"role": r["role"], "content": r["content"]} for r in reversed(rows)
         ]
     return {"summary": summary, "messages": messages}
+
+
+async def list_conversations(user_id: str):
+    """Return ids and titles for a user's conversations."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, title FROM conversation WHERE user_id=$1 ORDER BY created_at DESC",
+            user_id,
+        )
+    return [{"id": str(r["id"]), "title": r["title"]} for r in rows]
+
+
+async def get_conversation(conversation_id: str, user_id: str) -> Dict[str, Any]:
+    """Fetch a conversation with all its messages if owned by the user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        convo = await conn.fetchrow(
+            "SELECT id, title FROM conversation WHERE id=$1 AND user_id=$2",
+            conversation_id,
+            user_id,
+        )
+        if not convo:
+            raise ValueError("Conversation not found")
+        rows = await conn.fetch(
+            """SELECT id, role, content FROM message
+            WHERE conversation_id=$1 ORDER BY created_at""",
+            conversation_id,
+        )
+    return {
+        "id": str(convo["id"]),
+        "title": convo["title"],
+        "messages": [
+            {
+                "id": str(r["id"]),
+                "role": r["role"],
+                "content": r["content"],
+            }
+            for r in rows
+        ],
+    }

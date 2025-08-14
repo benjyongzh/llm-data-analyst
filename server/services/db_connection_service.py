@@ -100,3 +100,32 @@ async def get_db_connection(db_connection_id: str) -> DBConnection:
             host=row["host"],
             port=row["port"],
         )
+
+
+async def list_db_connections(user_id: str):
+    """List connections for a user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, db_name, db_user, host, port, enabled_at, disabled_at
+            FROM db_connection WHERE user_id=$1
+            """,
+            user_id,
+        )
+    result = []
+    for r in rows:
+        disabled_at = r["disabled_at"]
+        enabled_at = r["enabled_at"]
+        enabled = disabled_at is None or (enabled_at and disabled_at < enabled_at)
+        result.append(
+            {
+                "id": str(r["id"]),
+                "db_name": r["db_name"],
+                "host": r["host"],
+                "port": r["port"],
+                "user": r["db_user"],
+                "enabled": enabled,
+            }
+        )
+    return result

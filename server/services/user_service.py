@@ -2,6 +2,23 @@ from ..db.database import get_pool
 from ..schemas.user import UserCreateRequest, UserUpdateRequest
 
 
+async def authenticate_user(username: str, password: str):
+    """Verify a user's credentials."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, name FROM app_user
+            WHERE name=$1 AND password=$2 AND deleted_at IS NULL
+            """,
+            username,
+            password,
+        )
+        if row:
+            return {"user_id": str(row["id"]), "username": row["name"]}
+        return None
+
+
 async def create_user(user: UserCreateRequest) -> str:
     """Insert a new application user and return its id."""
     pool = await get_pool()

@@ -1,4 +1,5 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 from .db_connection import DBConnection
@@ -48,3 +49,20 @@ class ConversationCreateResponse(BaseModel):
     """Response containing the new conversation id."""
 
     conversation_id: str
+
+
+class ConversationListItem(BaseModel):
+    id: str
+    title: Optional[str] = None
+
+
+class MessageItem(BaseModel):
+    id: str
+    role: str
+    content: Dict[str, Any]
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    title: Optional[str] = None
+    messages: List[MessageItem]
