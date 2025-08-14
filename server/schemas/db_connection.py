@@ -33,3 +33,12 @@ class DBConnectionToggleRequest(BaseModel):
     """Request body for enable/disable operations."""
 
     user_id: str
+
+
+class DBConnectionListItem(BaseModel):
+    id: str
+    db_name: str
+    host: str
+    port: int
+    user: str
+    enabled: bool
