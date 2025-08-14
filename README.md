@@ -9,8 +9,13 @@ Monorepo containing a React client and a FastAPI backend for an LLM-powered data
 
 ## Running the backend
 
+The backend uses [uv](https://docs.astral.sh/uv/) for dependency management. Install
+dependencies and start the server with:
+
 ```bash
-uvicorn server.main:app --reload
+cd server
+uv sync
+uv run uvicorn server.main:app --reload
 ```
 
 Set the `LLM_API_KEY` environment variable before starting the server. The backend uses

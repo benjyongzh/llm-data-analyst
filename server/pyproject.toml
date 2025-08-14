@@ -1,0 +1,13 @@
+[project]
+name = "llm-data-analyst-server"
+version = "0.1.0"
+description = "FastAPI backend for the LLM Data Analyst chatbot."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "openai",
+    "langchain",
+    "langchain-community",
+    "langchain-openai",
+]
