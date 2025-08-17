@@ -34,6 +34,9 @@ class WorkflowState(TypedDict, total=False):
     needs_clarification: bool
     clarification_questions: List[str]
     clarification_answers: Dict[str, Any]
+    clarification_attempts: int
+    clarification_limit: int
+    clarification_escalated: bool
     plan: Dict[str, Any]
     db_url: str
     data: List[Dict[str, Any]]
@@ -80,6 +83,7 @@ def clarification(state: WorkflowState) -> WorkflowState:
     """Ask clarifying questions and merge user responses."""
     logger.info("Step 3: Clarification loop")
     if state.get("needs_clarification"):
+        state["clarification_attempts"] = state.get("clarification_attempts", 0) + 1
         questions = state.get("clarification_questions", [])
         answers = state.get("clarification_answers")
         if answers:
@@ -91,6 +95,13 @@ def clarification(state: WorkflowState) -> WorkflowState:
             state = intent_understanding(state)
         else:
             logger.debug("Clarification needed. Questions: %s", questions)
+        limit = state.get("clarification_limit", 3)
+        if state.get("needs_clarification") and state["clarification_attempts"] >= limit:
+            logger.warning(
+                "Maximum clarification attempts (%d) reached; escalating", limit
+            )
+            state["clarification_escalated"] = True
+            state["needs_clarification"] = False
     return state
 
 
@@ -159,8 +170,8 @@ def monitoring(state: WorkflowState) -> WorkflowState:
 
 
 def clarification_router(state: WorkflowState) -> str:
-    """Route back for questions or continue if complete."""
-    if state.get("needs_clarification"):
+    """Route back for questions, escalate, or continue if complete."""
+    if state.get("needs_clarification") or state.get("clarification_escalated"):
         return END
     return "task_planning"
 
