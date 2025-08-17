@@ -132,13 +132,63 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
 
 
 def visualization_spec(state: WorkflowState) -> WorkflowState:
-    """Determine chart type and package spec with data."""
+    """Determine chart type and build a rich chart specification."""
     logger.info("Step 6: Visualization spec & data packaging")
+
+    data: List[Dict[str, Any]] = state.get("data", [])
+    entities = state.get("entities", {})
+
+    # Infer dimensions and measures from entities or data sample
+    dims: List[str] = entities.get("dimensions", []) or []
+    measures: List[str] = entities.get("metrics", []) or entities.get("measures", []) or []
+
+    if data:
+        sample = data[0]
+        if not dims:
+            dims = [k for k, v in sample.items() if not isinstance(v, (int, float))]
+        if not measures:
+            measures = [k for k, v in sample.items() if isinstance(v, (int, float))]
+
+    # Determine chart type based on dimensions, measures, and intent
+    time_like = [d for d in dims if any(t in d.lower() for t in ["date", "time", "year", "month", "day"])]
+    if time_like:
+        chart_type = "line"
+    elif len(measures) > 1:
+        chart_type = "bar"
+    else:
+        chart_type = "bar"
+
+    # Scales for React charting library
+    scales = {
+        "x": {"type": "time" if time_like else "band"},
+        "y": {"type": "linear"},
+    }
+
+    # Labels and metadata
+    x_label = dims[0] if dims else ""
+    y_label = measures[0] if measures else ""
+    title_parts: List[str] = []
+    if measures:
+        title_parts.append(", ".join(measures))
+    if dims:
+        title_parts.append("by " + ", ".join(dims))
+    title = " ".join(title_parts) if title_parts else "Chart"
+
+    labels: Dict[str, str] = {"title": title, "x": x_label, "y": y_label}
+    if len(dims) > 1:
+        labels["color"] = dims[1]
+
+    # Simple color palette
+    colors = ["#5B8FF9", "#5AD8A6", "#5D7092", "#F6BD16"]
+
     state["chart_spec"] = {
-        "chart_type": "bar",
-        "data": state.get("data", []),
-        "dimensions": [],
-        "measures": [],
+        "chart_type": chart_type,
+        "data": data,
+        "dimensions": dims,
+        "measures": measures,
+        "scales": scales,
+        "labels": labels,
+        "colors": colors,
     }
     return state
 
