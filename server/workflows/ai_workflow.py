@@ -14,6 +14,7 @@ contextual details:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, TypedDict
 
 from langgraph.graph import StateGraph, END
@@ -21,6 +22,8 @@ from sqlalchemy import create_engine, inspect
 
 
 logger = logging.getLogger(__name__)
+
+MAX_CLARIFICATION_ATTEMPTS = int(os.getenv("MAX_CLARIFICATION_ATTEMPTS", "3"))
 
 
 class WorkflowState(TypedDict, total=False):
@@ -33,6 +36,7 @@ class WorkflowState(TypedDict, total=False):
     entities: Dict[str, Any]
     needs_clarification: bool
     clarification_questions: List[str]
+    clarification_attempts: int
     plan: Dict[str, Any]
     db_url: str
     data: List[Dict[str, Any]]
@@ -78,10 +82,17 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
 def clarification(state: WorkflowState) -> WorkflowState:
     """Ask clarifying questions if the prompt is ambiguous."""
     logger.info("Step 3: Clarification loop")
+    state["clarification_attempts"] = state.get("clarification_attempts", 0) + 1
     if state.get("needs_clarification"):
         logger.debug(
             "Clarification needed. Questions: %s", state.get("clarification_questions", [])
         )
+        if state["clarification_attempts"] >= MAX_CLARIFICATION_ATTEMPTS:
+            logger.warning(
+                "Max clarification attempts (%s) reached", MAX_CLARIFICATION_ATTEMPTS
+            )
+            state["needs_clarification"] = False
+            state["response"] = "Unable to clarify request; escalating."
     return state
 
 
@@ -152,6 +163,8 @@ def monitoring(state: WorkflowState) -> WorkflowState:
 def clarification_router(state: WorkflowState) -> str:
     """Route back for questions or continue if complete."""
     if state.get("needs_clarification"):
+        if state.get("clarification_attempts", 0) >= MAX_CLARIFICATION_ATTEMPTS:
+            return "conversation_summary"
         return "prompt_intake"
     return "task_planning"
 
