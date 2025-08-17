@@ -2,8 +2,8 @@ import os
 from fastapi import APIRouter, HTTPException, Depends
 
 from ....schemas import QueryRequest, QueryResponse
-from ....services import llm_service
 from ....auth import verify_token
+from ....workflows import build_workflow
 
 router = APIRouter()
 
@@ -15,11 +15,21 @@ async def query_endpoint(
     if not os.getenv("LLM_API_KEY"):
         raise HTTPException(status_code=500, detail="LLM_API_KEY not configured")
 
-    data = llm_service.extract_data(
-        request.prompt, request.db_connection, request.model_name
-    )
-    charts = llm_service.choose_charts(
-        request.prompt, request.available_charts, data, request.model_name
-    )
+    workflow = build_workflow()
+    state_input = {
+        "prompt": request.prompt,
+        "db_url": (
+            f"postgresql://{request.db_connection.user}:"
+            f"{request.db_connection.password}@"
+            f"{request.db_connection.host}:{request.db_connection.port}/"
+            f"{request.db_connection.db_name}"
+        ),
+    }
+    try:
+        result = workflow.invoke(state_input)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
-    return QueryResponse(charts=charts)
+    return QueryResponse(chart_spec=result.get("chart_spec"), response=result.get("response"))
