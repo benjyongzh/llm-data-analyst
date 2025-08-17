@@ -33,6 +33,7 @@ class WorkflowState(TypedDict, total=False):
     entities: Dict[str, Any]
     needs_clarification: bool
     clarification_questions: List[str]
+    clarification_answers: Dict[str, Any]
     plan: Dict[str, Any]
     db_url: str
     data: List[Dict[str, Any]]
@@ -76,12 +77,20 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
 
 
 def clarification(state: WorkflowState) -> WorkflowState:
-    """Ask clarifying questions if the prompt is ambiguous."""
+    """Ask clarifying questions and merge user responses."""
     logger.info("Step 3: Clarification loop")
     if state.get("needs_clarification"):
-        logger.debug(
-            "Clarification needed. Questions: %s", state.get("clarification_questions", [])
-        )
+        questions = state.get("clarification_questions", [])
+        answers = state.get("clarification_answers")
+        if answers:
+            logger.debug("Received clarification answers: %s", answers)
+            entities = state.get("entities", {})
+            entities.update(answers)
+            state["entities"] = entities
+            # Re-evaluate intent with the new information
+            state = intent_understanding(state)
+        else:
+            logger.debug("Clarification needed. Questions: %s", questions)
     return state
 
 
@@ -152,7 +161,7 @@ def monitoring(state: WorkflowState) -> WorkflowState:
 def clarification_router(state: WorkflowState) -> str:
     """Route back for questions or continue if complete."""
     if state.get("needs_clarification"):
-        return "prompt_intake"
+        return END
     return "task_planning"
 
 
