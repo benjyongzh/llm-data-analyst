@@ -20,7 +20,7 @@ from typing import Any, Dict, List, TypedDict
 
 from langgraph.graph import END, StateGraph
 from openai import OpenAI
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ class WorkflowState(TypedDict, total=False):
     clarification_escalated: bool
     plan: Dict[str, Any]
     db_url: str
+    error: str
     data: List[Dict[str, Any]]
     chart_spec: Dict[str, Any]
     response: str
@@ -119,18 +120,81 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
     """Retrieve and process data using SQLAlchemy reflection."""
     logger.info("Step 5: Data retrieval & processing")
     db_url = state.get("db_url")
-    if db_url:
-        engine = create_engine(db_url)
-        try:
-            inspector = inspect(engine)
-            tables = inspector.get_table_names()
-            logger.debug("Reflected tables: %s", tables)
-            state["data"] = []  # Placeholder for real queries
-        finally:
-            engine.dispose()
-    else:
+    entities = state.get("entities", {})
+
+    if not db_url:
         logger.warning("No database URL provided; skipping data retrieval")
         state["data"] = []
+        state["error"] = "No database URL provided."
+        return state
+
+    engine = None
+    try:
+        engine = create_engine(db_url)
+    except Exception as exc:  # pragma: no cover - depends on SQLAlchemy internals
+        logger.exception("Invalid database URL: %s", exc)
+        state["data"] = []
+        state["error"] = "Invalid database URL."
+        return state
+
+    try:
+        inspector = inspect(engine)
+        table_name = entities.get("table") or entities.get("table_name")
+        if not table_name:
+            logger.error("No table specified in entities")
+            state["data"] = []
+            state["error"] = "No table specified."
+            return state
+
+        tables = inspector.get_table_names()
+        logger.debug("Reflected tables: %s", tables)
+        if table_name not in tables:
+            logger.error("Table %s not found", table_name)
+            state["data"] = []
+            state["error"] = f"Table '{table_name}' not found."
+            return state
+
+        metadata = MetaData()
+        table = Table(table_name, metadata, autoload_with=engine)
+
+        dims: List[str] = entities.get("dimensions", []) or []
+        metrics: List[str] = (
+            entities.get("metrics", []) or entities.get("measures", []) or []
+        )
+        filters: Dict[str, Any] = entities.get("filters", {}) or {}
+
+        if metrics:
+            group_cols = [table.c[d] for d in dims if d in table.c]
+            agg_cols = [
+                func.sum(table.c[m]).label(m)
+                for m in metrics
+                if m in table.c
+            ]
+            stmt = select(*group_cols, *agg_cols)
+            if group_cols:
+                stmt = stmt.group_by(*group_cols)
+        else:
+            cols = [table.c[c] for c in dims if c in table.c]
+            if not cols:
+                cols = list(table.c)
+            stmt = select(*cols)
+
+        for col, val in filters.items():
+            if col in table.c:
+                stmt = stmt.where(table.c[col] == val)
+
+        stmt = stmt.limit(100)
+
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            state["data"] = [dict(row._mapping) for row in result]
+    except Exception as exc:
+        logger.exception("Data retrieval failed: %s", exc)
+        state["data"] = []
+        state["error"] = str(exc)
+    finally:
+        if engine:
+            engine.dispose()
     return state
 
 
@@ -199,6 +263,9 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
 def response_generation(state: WorkflowState) -> WorkflowState:
     """Compose a narrative summary and attach chart spec for the frontend."""
     logger.info("Step 7: Response generation & delivery")
+    if state.get("error"):
+        state["response"] = state["error"]
+        return state
 
     client = OpenAI(api_key=os.environ["LLM_API_KEY"])
     data_json = json.dumps(state.get("data", []))
