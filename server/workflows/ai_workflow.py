@@ -13,10 +13,13 @@ contextual details:
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 from typing import Any, Dict, List, TypedDict
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+from openai import OpenAI
 from sqlalchemy import create_engine, inspect
 
 
@@ -144,9 +147,24 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
 
 
 def response_generation(state: WorkflowState) -> WorkflowState:
-    """Compose the textual response and attach chart spec."""
+    """Compose a narrative summary and attach chart spec for the frontend."""
     logger.info("Step 7: Response generation & delivery")
-    state["response"] = "Analysis complete. See chart specification for details."
+
+    client = OpenAI(api_key=os.environ["LLM_API_KEY"])
+    data_json = json.dumps(state.get("data", []))
+    spec_json = json.dumps(state.get("chart_spec", {}))
+    prompt = (
+        "Provide a concise, user-facing summary of the following data. "
+        "Reference the chart specification when relevant.\n"
+        f"Data: {data_json}\n"
+        f"Chart spec: {spec_json}"
+    )
+
+    resp = client.responses.create(
+        model=os.getenv("LLM_RESPONSE_MODEL", "gpt-4o-mini"),
+        input=prompt,
+    )
+    state["response"] = resp.output[0].content[0].text.strip()
     return state
 
 
