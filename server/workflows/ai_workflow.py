@@ -17,7 +17,8 @@ import logging
 from typing import Any, Dict, List, Optional, TypedDict
 
 from langgraph.graph import StateGraph, END
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, MetaData, Table, select
+from datetime import datetime, timedelta
 
 
 logger = logging.getLogger(__name__)
@@ -81,25 +82,91 @@ def task_planning(state: WorkflowState) -> WorkflowState:
 def data_retrieval(state: WorkflowState) -> WorkflowState:
     """Retrieve and process data using SQLAlchemy reflection."""
     logger.info("Step 5: Data retrieval & processing")
+
+    # Reset previous errors
+    state.pop("error", None)
+
     db_url = state.get("db_url")
-    if db_url:
+    entities = state.get("entities", {})
+    if not db_url:
+        msg = "No database URL provided"
+        logger.warning(msg)
+        state["error"] = msg
+        state["data"] = []
+        return state
+
+    try:
         engine = create_engine(db_url)
-        try:
-            inspector = inspect(engine)
+    except Exception as exc:
+        msg = f"Invalid database URL: {exc}"
+        logger.exception(msg)
+        state["error"] = msg
+        state["data"] = []
+        return state
+
+    try:
+        with engine.connect() as conn:
+            inspector = inspect(conn)
             tables = inspector.get_table_names()
             logger.debug("Reflected tables: %s", tables)
-            state["data"] = []  # Placeholder for real queries
-        finally:
-            engine.dispose()
-    else:
-        logger.warning("No database URL provided; skipping data retrieval")
+
+            table_name = entities.get("table") or (tables[0] if tables else None)
+            if not table_name or table_name not in tables:
+                msg = (
+                    f"Table '{table_name}' not found" if table_name else "No table specified or found in database"
+                )
+                logger.warning(msg)
+                state["error"] = msg
+                state["data"] = []
+                return state
+
+            metadata = MetaData()
+            table = Table(table_name, metadata, autoload_with=engine)
+
+            columns = entities.get("columns")
+            if columns:
+                selected_cols = [table.c[col] for col in columns if col in table.c]
+            else:
+                selected_cols = list(table.c)
+
+            stmt = select(*selected_cols)
+
+            # Apply simple filters from entities
+            filters = entities.get("filters", {})
+            for col, value in filters.items():
+                if col in table.c:
+                    stmt = stmt.where(table.c[col] == value)
+
+            # Apply timeframe assumption if a date column exists
+            timeframe = entities.get("timeframe", "last 12 months")
+            if timeframe == "last 12 months":
+                date_col = next(
+                    (table.c[c] for c in ["date", "created_at", "timestamp"] if c in table.c),
+                    None,
+                )
+                if date_col is not None:
+                    start_date = datetime.utcnow() - timedelta(days=365)
+                    stmt = stmt.where(date_col >= start_date)
+
+            result = conn.execute(stmt)
+            state["data"] = [dict(row._mapping) for row in result]
+    except Exception as exc:
+        logger.exception("Error during data retrieval: %s", exc)
+        state["error"] = str(exc)
         state["data"] = []
+    finally:
+        engine.dispose()
+
     return state
 
 
 def visualization_spec(state: WorkflowState) -> WorkflowState:
     """Determine chart type and package spec with data."""
     logger.info("Step 6: Visualization spec & data packaging")
+    if state.get("error"):
+        state["chart_spec"] = {}
+        return state
+
     state["chart_spec"] = {
         "chart_type": "bar",
         "data": state.get("data", []),
@@ -112,7 +179,10 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
 def response_generation(state: WorkflowState) -> WorkflowState:
     """Compose the textual response and attach chart spec."""
     logger.info("Step 7: Response generation & delivery")
-    state["response"] = "Analysis complete. See chart specification for details."
+    if error := state.get("error"):
+        state["response"] = error
+    else:
+        state["response"] = "Analysis complete. See chart specification for details."
     return state
 
 
