@@ -14,7 +14,7 @@ contextual details:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, TypedDict
 
 from langgraph.graph import StateGraph, END
 from sqlalchemy import create_engine, inspect
@@ -32,6 +32,7 @@ class WorkflowState(TypedDict, total=False):
     intent: str
     entities: Dict[str, Any]
     needs_clarification: bool
+    clarification_questions: List[str]
     plan: Dict[str, Any]
     db_url: str
     data: List[Dict[str, Any]]
@@ -55,19 +56,32 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     logger.info("Step 2: Intent & query understanding")
 
     entities = state.get("entities", {})
-    entities.setdefault("timeframe", "last 12 months")
     entities.setdefault("timezone", "Asia/Singapore")
     entities.setdefault("currency", "single assumed currency")
 
+    questions: List[str] = []
+    if not entities.get("timeframe"):
+        questions.append("What timeframe would you like to analyze?")
+        entities["timeframe"] = "last 12 months"
+    if not entities.get("metrics"):
+        questions.append("Which metrics are you interested in?")
+    if not entities.get("dimensions"):
+        questions.append("Which dimensions should the data be grouped by?")
+
     state["entities"] = entities
     state["intent"] = state.get("intent", "analysis")
+    state["needs_clarification"] = bool(questions)
+    state["clarification_questions"] = questions
     return state
 
 
 def clarification(state: WorkflowState) -> WorkflowState:
     """Ask clarifying questions if the prompt is ambiguous."""
     logger.info("Step 3: Clarification loop")
-    state["needs_clarification"] = False
+    if state.get("needs_clarification"):
+        logger.debug(
+            "Clarification needed. Questions: %s", state.get("clarification_questions", [])
+        )
     return state
 
 
@@ -135,6 +149,13 @@ def monitoring(state: WorkflowState) -> WorkflowState:
     return state
 
 
+def clarification_router(state: WorkflowState) -> str:
+    """Route back for questions or continue if complete."""
+    if state.get("needs_clarification"):
+        return "prompt_intake"
+    return "task_planning"
+
+
 def build_workflow() -> StateGraph[WorkflowState]:
     """Create and compile the LangGraph workflow."""
     builder = StateGraph(WorkflowState)
@@ -153,7 +174,7 @@ def build_workflow() -> StateGraph[WorkflowState]:
     builder.set_entry_point("prompt_intake")
     builder.add_edge("prompt_intake", "intent_understanding")
     builder.add_edge("intent_understanding", "clarification")
-    builder.add_edge("clarification", "task_planning")
+    builder.add_conditional_edges("clarification", clarification_router)
     builder.add_edge("task_planning", "data_retrieval")
     builder.add_edge("data_retrieval", "visualization_spec")
     builder.add_edge("visualization_spec", "response_generation")
