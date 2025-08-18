@@ -58,10 +58,10 @@ async def conversation_query(
         conversation_id, "user", {"text": request.prompt}
     )
 
-    data = llm_service.extract_data(
+    data = await llm_service.extract_data(
         full_prompt, db_conn, request.model_name
     )
-    charts = llm_service.choose_charts(
+    charts = await llm_service.choose_charts(
         full_prompt, request.available_charts, data, request.model_name
     )
 
