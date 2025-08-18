@@ -9,6 +9,11 @@ JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
 JWT_ALGORITHM = "HS256"
 JWT_EXP_SECONDS = int(os.getenv("JWT_EXP_SECONDS", "86400"))  # 1 day default
 
+# Cookie settings
+IS_PRODUCTION = os.getenv("ENVIRONMENT") == "production"
+COOKIE_SECURE = IS_PRODUCTION
+COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
+
 
 def create_access_token(user_id: str, username: str, expires_delta: Optional[int] = None) -> str:
     exp = datetime.utcnow() + timedelta(seconds=expires_delta or JWT_EXP_SECONDS)
@@ -27,3 +32,14 @@ def verify_token(request: Request) -> Dict[str, str]:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def verify_csrf(request: Request) -> None:
+    """Simple double-submit CSRF protection.
+
+    Expects a matching token in the `csrf_token` cookie and `X-CSRF-Token` header.
+    """
+    cookie_token = request.cookies.get("csrf_token")
+    header_token = request.headers.get("X-CSRF-Token")
+    if not cookie_token or not header_token or cookie_token != header_token:
+        raise HTTPException(status_code=403, detail="CSRF validation failed")

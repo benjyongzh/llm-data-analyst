@@ -35,6 +35,7 @@ Environment variables:
 - `LLM_API_KEY` – API key for the LLM provider
 - `JWT_SECRET` – secret used to sign JWTs (`change-me` default)
 - `JWT_EXP_SECONDS` – token lifetime in seconds (defaults to one day)
+- `ENVIRONMENT` – set to `production` to enable secure cookie settings
 
 ## API overview
 
