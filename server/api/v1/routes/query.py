@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 
 from ....schemas import QueryRequest, QueryResponse
@@ -26,7 +27,7 @@ async def query_endpoint(
         ),
     }
     try:
-        result = workflow.invoke(state_input)
+        result = await asyncio.to_thread(workflow.invoke, state_input)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
