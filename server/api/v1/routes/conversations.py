@@ -1,6 +1,4 @@
-import os
 from fastapi import APIRouter, HTTPException, Depends
-
 from ....schemas import (
     ConversationCreateRequest,
     ConversationCreateResponse,
@@ -11,6 +9,7 @@ from ....schemas import (
 )
 from ....services import conversation_service, llm_service
 from ....auth import verify_token
+from ....config import settings
 
 router = APIRouter(prefix="/conversations")
 
@@ -34,17 +33,19 @@ async def conversation_query(
     request: ConversationQueryRequest,
     token_data: dict = Depends(verify_token),
 ) -> QueryResponse:
-    if not os.getenv("LLM_API_KEY"):
+    if not settings.LLM_API_KEY:
         raise HTTPException(status_code=500, detail="LLM_API_KEY not configured")
     try:
         db_conn = await conversation_service.get_conversation_db_connection(
-            conversation_id
+            conversation_id, token_data["user_id"]
         )
     except ValueError as exc:
         detail = str(exc)
         status = 400 if detail == "DB connection disabled" else 404
         raise HTTPException(status_code=status, detail=detail)
-    context = await conversation_service.get_context(conversation_id)
+    context = await conversation_service.get_context(
+        conversation_id, token_data["user_id"]
+    )
     history_parts = []
     if context.get("summary"):
         history_parts.append(context["summary"])

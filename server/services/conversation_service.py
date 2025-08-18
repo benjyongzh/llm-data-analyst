@@ -24,7 +24,9 @@ async def create_conversation(
         return str(row["id"])
 
 
-async def get_conversation_db_connection(conversation_id: str) -> DBConnection:
+async def get_conversation_db_connection(
+    conversation_id: str, user_id: str
+) -> DBConnection:
     """Fetch the database connection associated with a conversation."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -34,9 +36,10 @@ async def get_conversation_db_connection(conversation_id: str) -> DBConnection:
                    dc.enabled_at, dc.disabled_at
             FROM conversation c
             JOIN db_connection dc ON c.db_connection_id = dc.id
-            WHERE c.id = $1
+            WHERE c.id = $1 AND c.user_id = $2
             """,
             conversation_id,
+            user_id,
         )
         if not row:
             raise ValueError("Conversation not found")
@@ -63,24 +66,38 @@ async def add_message(
     """Persist a message and return its id."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO message (conversation_id, role, content, token_count, parent_id)
-            VALUES ($1, $2, $3, $4, $5) RETURNING id
-            """,
-            conversation_id,
-            role,
-            json.dumps(content),
-            token_count,
-            parent_id,
-        )
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO message (conversation_id, role, content, token_count, parent_id)
+                VALUES ($1, $2, $3, $4, $5) RETURNING id
+                """,
+                conversation_id,
+                role,
+                json.dumps(content),
+                token_count,
+                parent_id,
+            )
+            await conn.execute(
+                "UPDATE conversation SET updated_at=now() WHERE id=$1",
+                conversation_id,
+            )
         return str(row["id"])
 
 
-async def get_context(conversation_id: str, limit: int = 20) -> Dict[str, Any]:
+async def get_context(
+    conversation_id: str, user_id: str, limit: int = 20
+) -> Dict[str, Any]:
     """Fetch summary and the latest messages for a conversation."""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        convo = await conn.fetchrow(
+            "SELECT 1 FROM conversation WHERE id=$1 AND user_id=$2",
+            conversation_id,
+            user_id,
+        )
+        if not convo:
+            raise ValueError("Conversation not found")
         summary_row = await conn.fetchrow(
             "SELECT summary FROM convo_summary WHERE conversation_id = $1",
             conversation_id,

@@ -7,7 +7,6 @@ Usage:
 
 import asyncio
 import os
-
 import asyncpg
 from passlib.context import CryptContext
 

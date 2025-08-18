@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from .db_connection import DBConnection
 
 
 class ChartData(BaseModel):
@@ -11,15 +10,6 @@ class ChartData(BaseModel):
     chart_type: str
     data: Any
     reasoning: Optional[str] = None
-
-
-class QueryRequest(BaseModel):
-    """Request payload from the client."""
-
-    prompt: str
-    db_connection: DBConnection
-    available_charts: List[str]
-    model_name: str
 
 
 class ConversationQueryRequest(BaseModel):

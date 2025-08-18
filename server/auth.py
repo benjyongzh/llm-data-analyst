@@ -1,16 +1,17 @@
-import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 
 import jwt
 from fastapi import HTTPException, Request
 
-JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
+from .config import settings
+
+JWT_SECRET = settings.JWT_SECRET
 JWT_ALGORITHM = "HS256"
-JWT_EXP_SECONDS = int(os.getenv("JWT_EXP_SECONDS", "86400"))  # 1 day default
+JWT_EXP_SECONDS = settings.JWT_EXP_SECONDS  # 1 day default
 
 # Cookie settings
-IS_PRODUCTION = os.getenv("ENVIRONMENT") == "production"
+IS_PRODUCTION = settings.ENVIRONMENT == "production"
 COOKIE_SECURE = IS_PRODUCTION
 COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
 
