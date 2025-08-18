@@ -1,6 +1,6 @@
-import os
 from typing import Optional
 
+import os
 import asyncpg
 
 _POOL: Optional[asyncpg.Pool] = None
@@ -55,10 +55,12 @@ CREATE TABLE IF NOT EXISTS message (
 CREATE INDEX IF NOT EXISTS idx_message_convo_created ON message (conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS convo_summary (
-  conversation_id UUID PRIMARY KEY REFERENCES conversation(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL UNIQUE REFERENCES conversation(id) ON DELETE CASCADE,
   summary VARCHAR(1000) NOT NULL,
   last_message_id UUID NOT NULL REFERENCES message(id),
   token_count INT,
+  created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 """

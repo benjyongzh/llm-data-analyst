@@ -1,7 +1,6 @@
 """LLM-powered data extraction and chart recommendation utilities."""
 import asyncio
 import json
-import os
 from typing import Any, Dict, List
 
 from openai import OpenAI
@@ -11,6 +10,7 @@ from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from ..schemas import DBConnection, ChartData
+from ..config import settings
 
 
 def _build_dsn(conn: DBConnection) -> str:
@@ -33,7 +33,7 @@ async def extract_data(
     def _run() -> List[Dict[str, Any]]:
         dsn = _build_dsn(db_connection)
         db = SQLDatabase.from_uri(dsn)
-        llm = ChatOpenAI(model=model_name, api_key=os.environ["LLM_API_KEY"])
+        llm = ChatOpenAI(model=model_name, api_key=settings.LLM_API_KEY)
         agent = create_sql_agent(
             llm, db, agent_type=AgentType.OPENAI_FUNCTIONS, verbose=False
         )
@@ -58,7 +58,7 @@ async def choose_charts(
     """Ask the LLM to pick chart types and shape data for each chart."""
 
     def _run() -> List[ChartData]:
-        client = OpenAI(api_key=os.environ["LLM_API_KEY"])
+        client = OpenAI(api_key=settings.LLM_API_KEY)
 
         response_format = {
             "type": "json_schema",

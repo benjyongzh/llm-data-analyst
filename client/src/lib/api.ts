@@ -12,32 +12,11 @@ export type ChartData = {
   reasoning?: string | null
 }
 
-export type QueryRequest = {
-  prompt: string
-  db_connection: DBConnection
-  available_charts: string[]
-  model_name: string
-}
-
 export type QueryResponse = {
   charts: ChartData[]
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-
-export async function queryApi(body: QueryRequest): Promise<QueryResponse> {
-  const res = await fetch(`${API_BASE}/query`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `Request failed with ${res.status}`)
-  }
-  return (await res.json()) as QueryResponse
-}
 
 export async function loginApi(body: { username: string; password: string }) {
   const res = await fetch(`${API_BASE}/users/login`, {

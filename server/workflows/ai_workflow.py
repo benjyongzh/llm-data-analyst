@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, TypedDict
 
 from langgraph.graph import END, StateGraph
 from openai import OpenAI
+
+from ..config import settings
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
@@ -267,7 +268,7 @@ def response_generation(state: WorkflowState) -> WorkflowState:
         state["response"] = state["error"]
         return state
 
-    client = OpenAI(api_key=os.environ["LLM_API_KEY"])
+    client = OpenAI(api_key=settings.LLM_API_KEY)
     data_json = json.dumps(state.get("data", []))
     spec_json = json.dumps(state.get("chart_spec", {}))
     prompt = (
@@ -278,7 +279,7 @@ def response_generation(state: WorkflowState) -> WorkflowState:
     )
 
     resp = client.responses.create(
-        model=os.getenv("LLM_RESPONSE_MODEL", "gpt-4o-mini"),
+        model=settings.LLM_RESPONSE_MODEL,
         input=prompt,
     )
     state["response"] = resp.output[0].content[0].text.strip()
