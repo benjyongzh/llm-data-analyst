@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from collections import Counter
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from ..db.database import get_pool
 from ..schemas.db_connection import DBConnection
@@ -109,13 +109,18 @@ async def add_message(
     return message_id
 
 
-async def summarize_conversation(conversation_id: str, token_limit: int = 1000) -> None:
+async def summarize_conversation(
+    conversation_id: str, token_limit: int = 1000
+) -> Optional[Tuple[str, str]]:
     """Summarize conversation messages and upsert into convo_summary.
 
     The summary concatenates the existing summary (if any) with new messages
     since the last summarized message. The resulting text is truncated to
     ``token_limit`` tokens (approximate) and stored along with the id of the
     latest message it covers.
+
+    Returns:
+        Tuple of ``(summary_text, last_message_id)`` if successful, otherwise ``None``.
     """
     pool = await get_pool()
     try:
@@ -128,6 +133,7 @@ async def summarize_conversation(conversation_id: str, token_limit: int = 1000) 
                 """,
                 conversation_id,
             )
+            summary_text = summary_row["summary"] if summary_row else ""
             last_message_id = summary_row["last_message_id"] if summary_row else None
             last_created_at = None
             if last_message_id:
@@ -147,10 +153,10 @@ async def summarize_conversation(conversation_id: str, token_limit: int = 1000) 
                 last_created_at,
             )
             if not rows:
-                return
+                return summary_text, last_message_id
             parts = []
-            if summary_row:
-                parts.append(summary_row["summary"])
+            if summary_text:
+                parts.append(summary_text)
             for r in rows:
                 text = r["content"].get("text") if isinstance(r["content"], dict) else None
                 if text:
@@ -189,6 +195,7 @@ async def summarize_conversation(conversation_id: str, token_limit: int = 1000) 
                     last_message_id,
                     token_count,
                 )
+            return summary_text, last_message_id
     except Exception as e:
         _summary_failures[conversation_id] += 1
         logger.exception("Failed to summarize conversation %s: %s", conversation_id, e)
@@ -198,6 +205,7 @@ async def summarize_conversation(conversation_id: str, token_limit: int = 1000) 
                 conversation_id,
                 _summary_failures[conversation_id],
             )
+    return None
 
 
 async def get_context(

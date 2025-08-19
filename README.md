@@ -147,6 +147,11 @@ flowchart TD
 Advice-only paths bypass data retrieval and visualization, generating a
 direct narrative response from the user's prompt.
 
+During the **Conversation summary** step, the workflow calls the conversation
+service to generate and persist a running summary of the dialogue. The returned
+text and the id of the last processed message are stored in the database and
+made available to downstream nodes via the workflow state.
+
 ### Data model
 
 ```mermaid
