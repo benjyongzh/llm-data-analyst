@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, List, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -246,6 +247,11 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
                 stmt = stmt.where(table.c[col] == val)
 
         stmt = stmt.limit(100)
+        # Store generated SQL for downstream validation
+        try:
+            state["sql"] = str(stmt)
+        except Exception:  # pragma: no cover - defensive
+            state["sql"] = ""
 
         with engine.connect() as conn:
             result = conn.execute(stmt)
@@ -357,6 +363,42 @@ def response_generation(state: WorkflowState) -> WorkflowState:
 def result_validation(state: WorkflowState) -> WorkflowState:
     """Validate the response for correctness and safety."""
     logger.info("Step 8: Result validation & safety")
+    sql = state.get("sql", "")
+    summary = state.get("response", "")
+
+    # SQL allowlist: only simple SELECT statements without dangerous keywords
+    if sql:
+        allowed = re.compile(r"^\s*select\b", re.IGNORECASE)
+        forbidden = re.compile(
+            r";|\b(drop|delete|insert|update|alter|grant|revoke)\b",
+            re.IGNORECASE,
+        )
+        if not allowed.match(sql) or forbidden.search(sql):
+            state["error"] = "SQL validation failed."
+            return state
+
+    if summary:
+        # Basic character allowlist
+        summary_ok = re.compile(r"^[\w\s.,!?:;'\-]*$", re.UNICODE)
+        if not summary_ok.match(summary):
+            state["error"] = "Summary validation failed."
+            return state
+
+        # Guardrail checks for PII
+        pii_patterns = [
+            re.compile(r"[\w.-]+@[\w.-]+", re.IGNORECASE),
+            re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"),
+        ]
+        if any(p.search(summary) for p in pii_patterns):
+            state["error"] = "PII detected in summary."
+            return state
+
+        # Simple profanity filter
+        profanity = {"damn", "shit"}
+        if any(word in summary.lower() for word in profanity):
+            state["error"] = "Profanity detected in summary."
+            return state
+
     return state
 
 
@@ -387,6 +429,13 @@ def monitoring(state: WorkflowState) -> WorkflowState:
     """Capture feedback signals for continuous improvement."""
     logger.info("Step 10: Monitoring & continuous improvement")
     return state
+
+
+def validation_router(state: WorkflowState) -> str:
+    """Route to summary or halt on validation errors."""
+    if state.get("error"):
+        return END
+    return "conversation_summary"
 
 
 def clarification_router(state: WorkflowState) -> str:
@@ -425,7 +474,7 @@ def build_workflow() -> StateGraph[WorkflowState]:
     builder.add_edge("data_retrieval", "visualization_spec")
     builder.add_edge("visualization_spec", "response_generation")
     builder.add_edge("response_generation", "result_validation")
-    builder.add_edge("result_validation", "conversation_summary")
+    builder.add_conditional_edges("result_validation", validation_router)
     builder.add_edge("conversation_summary", "monitoring")
     builder.add_edge("monitoring", END)
 
