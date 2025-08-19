@@ -1,8 +1,21 @@
+import asyncio
 import json
 from typing import Any, Dict, Optional
 
 from ..db.database import get_pool
 from ..schemas.db_connection import DBConnection
+
+
+def _estimate_tokens_from_text(text: str) -> int:
+    """Rough token estimator based on whitespace splitting."""
+    return max(1, len(text.split()))
+
+
+def _estimate_tokens_from_content(content: Dict[str, Any]) -> int:
+    text = content.get("text") if isinstance(content, dict) else None
+    if not text:
+        text = json.dumps(content)
+    return _estimate_tokens_from_text(text)
 
 
 async def create_conversation(
@@ -64,6 +77,8 @@ async def add_message(
     parent_id: Optional[str] = None,
 ) -> str:
     """Persist a message and return its id."""
+    if token_count is None:
+        token_count = _estimate_tokens_from_content(content)
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -82,13 +97,101 @@ async def add_message(
                 "UPDATE conversation SET updated_at=now() WHERE id=$1",
                 conversation_id,
             )
-        return str(row["id"])
+    message_id = str(row["id"])
+    if role == "assistant":
+        asyncio.create_task(summarize_conversation(conversation_id))
+    return message_id
+
+
+async def summarize_conversation(conversation_id: str, token_limit: int = 1000) -> None:
+    """Summarize conversation messages and upsert into convo_summary.
+
+    The summary concatenates the existing summary (if any) with new messages
+    since the last summarized message. The resulting text is truncated to
+    ``token_limit`` tokens (approximate) and stored along with the id of the
+    latest message it covers.
+    """
+    pool = await get_pool()
+    try:
+        async with pool.acquire() as conn:
+            summary_row = await conn.fetchrow(
+                """
+                SELECT summary, last_message_id
+                FROM convo_summary
+                WHERE conversation_id = $1
+                """,
+                conversation_id,
+            )
+            last_message_id = summary_row["last_message_id"] if summary_row else None
+            last_created_at = None
+            if last_message_id:
+                ts_row = await conn.fetchrow(
+                    "SELECT created_at FROM message WHERE id=$1", last_message_id
+                )
+                last_created_at = ts_row["created_at"] if ts_row else None
+            rows = await conn.fetch(
+                """
+                SELECT id, role, content
+                FROM message
+                WHERE conversation_id=$1
+                  AND ($2::timestamptz IS NULL OR created_at > $2)
+                ORDER BY created_at
+                """,
+                conversation_id,
+                last_created_at,
+            )
+            if not rows:
+                return
+            parts = []
+            if summary_row:
+                parts.append(summary_row["summary"])
+            for r in rows:
+                text = r["content"].get("text") if isinstance(r["content"], dict) else None
+                if text:
+                    parts.append(f"{r['role']}: {text}")
+            combined = "\n".join(parts)
+            tokens = _estimate_tokens_from_text(combined)
+            while tokens > token_limit and parts:
+                parts.pop(0)
+                combined = "\n".join(parts)
+                tokens = _estimate_tokens_from_text(combined)
+            summary_text = combined[-1000:]
+            token_count = _estimate_tokens_from_text(summary_text)
+            last_message_id = rows[-1]["id"]
+            if summary_row:
+                await conn.execute(
+                    """
+                    UPDATE convo_summary
+                    SET summary=$1, last_message_id=$2, token_count=$3, updated_at=now()
+                    WHERE conversation_id=$4
+                    """,
+                    summary_text,
+                    last_message_id,
+                    token_count,
+                    conversation_id,
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO convo_summary (
+                        conversation_id, summary, last_message_id, token_count, updated_at
+                    )
+                    VALUES ($1, $2, $3, $4, now())
+                    """,
+                    conversation_id,
+                    summary_text,
+                    last_message_id,
+                    token_count,
+                )
+    except Exception:
+        # Background task should not raise; ignore failures silently.
+        pass
 
 
 async def get_context(
-    conversation_id: str, user_id: str, limit: int = 20
+    conversation_id: str, user_id: str, token_limit: int = 2000
 ) -> Dict[str, Any]:
-    """Fetch summary and the latest messages for a conversation."""
+    """Fetch summary and latest messages within a token budget."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         convo = await conn.fetchrow(
@@ -99,23 +202,37 @@ async def get_context(
         if not convo:
             raise ValueError("Conversation not found")
         summary_row = await conn.fetchrow(
-            "SELECT summary FROM convo_summary WHERE conversation_id = $1",
+            "SELECT summary, last_message_id, token_count FROM convo_summary WHERE conversation_id = $1",
             conversation_id,
         )
         summary = summary_row["summary"] if summary_row else None
+        total_tokens = summary_row["token_count"] if summary_row else 0
+        last_message_id = summary_row["last_message_id"] if summary_row else None
+        last_created_at = None
+        if last_message_id:
+            ts_row = await conn.fetchrow(
+                "SELECT created_at FROM message WHERE id=$1", last_message_id
+            )
+            last_created_at = ts_row["created_at"] if ts_row else None
         rows = await conn.fetch(
             """
-            SELECT role, content FROM message
+            SELECT role, content, token_count
+            FROM message
             WHERE conversation_id = $1
+              AND ($2::timestamptz IS NULL OR created_at > $2)
             ORDER BY created_at DESC
-            LIMIT $2
             """,
             conversation_id,
-            limit,
+            last_created_at,
         )
-        messages = [
-            {"role": r["role"], "content": r["content"]} for r in reversed(rows)
-        ]
+        messages = []
+        for r in rows:
+            tcount = r["token_count"] or _estimate_tokens_from_content(r["content"])
+            if total_tokens + tcount > token_limit:
+                break
+            messages.append({"role": r["role"], "content": r["content"]})
+            total_tokens += tcount
+        messages.reverse()
     return {"summary": summary, "messages": messages}
 
 

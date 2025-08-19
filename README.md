@@ -9,6 +9,8 @@ React + Vite front end and a FastAPI backend.
 - Manage and enable/disable database connections
 - Create conversations and retrieve full message history
 - Toggleable sidebar for switching conversations and configuring connections
+- Conversations are summarized after each assistant reply to keep context
+  within token limits, and each summary records its last refresh time
 
 ## Structure
 
@@ -68,7 +70,9 @@ JWT cookie unless noted.
 Each conversation stores the database connection it should use. When a user
 sends a query, the API fetches the associated connection, gathers recent
 messages for context, and calls the LLM to produce chart-ready data. The
-resulting chart suggestions are saved as assistant messages.
+resulting chart suggestions are saved as assistant messages. After each
+assistant response, the conversation is summarized and stored so later
+requests only need the summary plus the most recent messages.
 
 ```mermaid
 flowchart LR
