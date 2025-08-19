@@ -20,15 +20,35 @@ export default function Login({ onLogin }: Props) {
   const [password, setPassword] = useState('')
   const [open, setOpen] = useState(false)
   const [reg, setReg] = useState({ name: '', email: '', password: '' })
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [regError, setRegError] = useState<string | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [regLoading, setRegLoading] = useState(false)
 
   const handleLogin = async () => {
-    const user = await loginApi({ username, password })
-    onLogin({ id: user.user_id, username: user.username })
+    setLoginError(null)
+    setLoginLoading(true)
+    try {
+      const user = await loginApi({ username, password })
+      onLogin({ id: user.user_id, username: user.username })
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoginLoading(false)
+    }
   }
 
   const handleRegister = async () => {
-    await registerApi(reg)
-    setOpen(false)
+    setRegError(null)
+    setRegLoading(true)
+    try {
+      await registerApi(reg)
+      setOpen(false)
+    } catch (err) {
+      setRegError(err instanceof Error ? err.message : 'Registration failed')
+    } finally {
+      setRegLoading(false)
+    }
   }
 
   return (
@@ -45,9 +65,10 @@ export default function Login({ onLogin }: Props) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        {loginError && <p className="text-sm text-red-500">{loginError}</p>}
         <div className="space-y-2">
-          <Button className="w-full" onClick={handleLogin}>
-            Login
+          <Button className="w-full" onClick={handleLogin} disabled={loginLoading}>
+            {loginLoading ? 'Logging in...' : 'Login'}
           </Button>
           <Button
             variant="outline"
@@ -80,12 +101,15 @@ export default function Login({ onLogin }: Props) {
               value={reg.password}
               onChange={(e) => setReg({ ...reg, password: e.target.value })}
             />
+            {regError && <p className="text-sm text-red-500">{regError}</p>}
           </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleRegister}>Register</Button>
+            <Button onClick={handleRegister} disabled={regLoading}>
+              {regLoading ? 'Registering...' : 'Register'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
