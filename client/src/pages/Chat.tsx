@@ -96,10 +96,24 @@ export default function Chat({ user }: Props) {
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  const [connLoading, setConnLoading] = useState(false)
 
   useEffect(() => {
-    listDbConnections().then(setDbConns)
-    listConversations().then(setConvos)
+    const load = async () => {
+      try {
+        const [dbs, convs] = await Promise.all([
+          listDbConnections(),
+          listConversations(),
+        ])
+        setDbConns(dbs)
+        setConvos(convs)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load data')
+      }
+    }
+    load()
   }, [])
 
   useEffect(() => {
@@ -111,60 +125,94 @@ export default function Chat({ user }: Props) {
   const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed) return
+    setError(null)
+    setSending(true)
     let convoId = currentConvo
-    if (!convoId) {
-      if (!selectedConn) return
-      const { conversation_id } = await createConversation({
-        user_id: user.id,
-        db_connection_id: selectedConn,
-        title: trimmed.slice(0, 20),
+    let loadingId: string | undefined
+    try {
+      if (!convoId) {
+        if (!selectedConn) return
+        const { conversation_id } = await createConversation({
+          user_id: user.id,
+          db_connection_id: selectedConn,
+          title: trimmed.slice(0, 20),
+        })
+        convoId = conversation_id
+        setCurrentConvo(convoId)
+        setConvos((prev) => [{ id: convoId!, title: trimmed.slice(0, 20) }, ...prev])
+      }
+      const id = crypto.randomUUID()
+      loadingId = crypto.randomUUID()
+      setMessagesMap((prev) => ({
+        ...prev,
+        [convoId!]: [
+          ...(prev[convoId!] || []),
+          { id, role: 'user', content: trimmed },
+          { id: loadingId, role: 'assistant', content: '', pending: true },
+        ],
+      }))
+      setInput('')
+      const res = await conversationQuery(convoId!, {
+        prompt: trimmed,
+        available_charts: ['bar', 'line', 'pie'],
+        model_name: 'gpt-4o-mini',
       })
-      convoId = conversation_id
-      setCurrentConvo(convoId)
-      setConvos((prev) => [{ id: convoId!, title: trimmed.slice(0, 20) }, ...prev])
+      const assistantText = formatContent({ charts: res.charts })
+      setMessagesMap((prev) => ({
+        ...prev,
+        [convoId!]: prev[convoId!].map((m) =>
+          m.id === loadingId ? { ...m, content: assistantText, pending: false } : m
+        ),
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message')
+      if (convoId && loadingId) {
+        setMessagesMap((prev) => ({
+          ...prev,
+          [convoId!]: prev[convoId!].filter((m) => m.id !== loadingId),
+        }))
+      }
+    } finally {
+      setSending(false)
     }
-    const id = crypto.randomUUID()
-    const loadingId = crypto.randomUUID()
-    setMessagesMap((prev) => ({
-      ...prev,
-      [convoId!]: [
-        ...(prev[convoId!] || []),
-        { id, role: 'user', content: trimmed },
-        { id: loadingId, role: 'assistant', content: '', pending: true },
-      ],
-    }))
-    setInput('')
-    const res = await conversationQuery(convoId!, {
-      prompt: trimmed,
-      available_charts: ['bar', 'line', 'pie'],
-      model_name: 'gpt-4o-mini',
-    })
-    const assistantText = formatContent({ charts: res.charts })
-    setMessagesMap((prev) => ({
-      ...prev,
-      [convoId!]: prev[convoId!].map((m) =>
-        m.id === loadingId ? { ...m, content: assistantText, pending: false } : m
-      ),
-    }))
   }
 
-  const refreshConns = async () => setDbConns(await listDbConnections())
+  const refreshConns = async () => {
+    try {
+      setDbConns(await listDbConnections())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh connections')
+    }
+  }
 
   const handleSaveConn = async () => {
+    setError(null)
+    setConnLoading(true)
     const body = { ...connForm, user_id: user.id }
-    if (editingConn) {
-      await updateDbConnection(editingConn, body)
-    } else {
-      await createDbConnection(body)
+    try {
+      if (editingConn) {
+        await updateDbConnection(editingConn, body)
+      } else {
+        await createDbConnection(body)
+      }
+      await refreshConns()
+      setConnOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save connection')
+    } finally {
+      setConnLoading(false)
     }
-    await refreshConns()
-    setConnOpen(false)
   }
 
   const handleToggleConn = async (id: string, enabled: boolean) => {
-    if (enabled) await disableDbConnection(id, user.id)
-    else await enableDbConnection(id, user.id)
-    await refreshConns()
+    setError(null)
+    try {
+      if (enabled) await disableDbConnection(id, user.id)
+      else await enableDbConnection(id, user.id)
+      await refreshConns()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update connection')
+    }
   }
 
   const openAddConn = () => {
@@ -182,15 +230,19 @@ export default function Chat({ user }: Props) {
   const handleSelectConvo = async (id: string) => {
     setCurrentConvo(id)
     if (!messagesMap[id]) {
-      const convo = await getConversation(id)
-      setMessagesMap((prev) => ({
-        ...prev,
-        [id]: convo.messages.map((m) => ({
-          id: m.id,
-          role: m.role as 'user' | 'assistant',
-          content: formatContent(m.content as { text?: string; charts?: ChartData[] }),
-        })),
-      }))
+      try {
+        const convo = await getConversation(id)
+        setMessagesMap((prev) => ({
+          ...prev,
+          [id]: convo.messages.map((m) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: formatContent(m.content as { text?: string; charts?: ChartData[] }),
+          })),
+        }))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load conversation')
+      }
     }
   }
 
@@ -246,6 +298,7 @@ export default function Chat({ user }: Props) {
             <div ref={bottomRef} />
           </div>
         </ScrollArea>
+        {error && <p className="px-4 text-sm text-red-500">{error}</p>}
         <Separator />
         <div className="px-4 pb-4 pt-2 flex items-center gap-2">
           <Select
@@ -282,7 +335,7 @@ export default function Chat({ user }: Props) {
               }
             }}
           />
-          <Button onClick={handleSend}>
+          <Button onClick={handleSend} disabled={sending}>
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -325,7 +378,9 @@ export default function Chat({ user }: Props) {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSaveConn}>Save</Button>
+            <Button onClick={handleSaveConn} disabled={connLoading}>
+              {connLoading ? 'Saving...' : 'Save'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

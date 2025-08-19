@@ -11,6 +11,7 @@ React + Vite front end and a FastAPI backend.
 - Toggleable sidebar for switching conversations and configuring connections
 - Conversations are summarized after each assistant reply to keep context
   within token limits, and each summary records its last refresh time
+- Inline error messages with cleared loading indicators for failed API calls
 - Summarization failures are logged and warnings emitted after repeated errors
 
 ## Structure
