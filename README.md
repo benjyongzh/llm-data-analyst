@@ -32,6 +32,8 @@ uv sync
 uv run uvicorn server.main:app --reload
 ```
 
+Configuration values are loaded with `pydantic-settings` so you can define them in a `.env` file.
+
 Environment variables:
 
 - `LLM_API_KEY` – API key for the LLM provider
