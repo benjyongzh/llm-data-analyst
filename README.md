@@ -13,6 +13,8 @@ React + Vite front end and a FastAPI backend.
   within token limits, and each summary records its last refresh time
 - Inline error messages with cleared loading indicators for failed API calls
 - Summarization failures are logged and warnings emitted after repeated errors
+- Guardrail checks validate generated SQL and responses, detecting PII or
+  profanity and halting the workflow on violations
 
 ## Structure
 
@@ -119,7 +121,9 @@ sequenceDiagram
    database and returns rows.
 4. **Summarize results** – rows are fed back to the LLM to craft a chart and
    natural‑language summary, which are saved as an assistant message.
-5. **Respond to user** – the API returns the chart suggestion to the client.
+5. **Validate outputs** – generated SQL and summaries are checked against
+   allowlists and guardrails for PII or profanity.
+6. **Respond to user** – the API returns the chart suggestion to the client.
 
 ### AI workflow steps
 
