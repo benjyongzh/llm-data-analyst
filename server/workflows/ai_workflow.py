@@ -13,6 +13,7 @@ contextual details:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, TypedDict
@@ -21,6 +22,7 @@ from langgraph.graph import END, StateGraph
 from openai import OpenAI
 
 from ..config import settings
+from ..services import conversation_service
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
@@ -320,7 +322,23 @@ def result_validation(state: WorkflowState) -> WorkflowState:
 def conversation_summary(state: WorkflowState) -> WorkflowState:
     """Summarize the conversation and log outputs."""
     logger.info("Step 9: Conversation summary & logging")
-    state["summary"] = "Conversation summarized."
+    conv_id = state.get("conversation_id")
+    if conv_id:
+        try:
+            try:
+                result = asyncio.run(
+                    conversation_service.summarize_conversation(conv_id)
+                )
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                result = loop.run_until_complete(
+                    conversation_service.summarize_conversation(conv_id)
+                )
+            if result:
+                summary_text, _last_id = result
+                state["summary"] = summary_text
+        except Exception:
+            logger.exception("Conversation summarization failed for %s", conv_id)
     return state
 
 
