@@ -15,4 +15,5 @@ dependencies = [
     "sqlalchemy",
     "PyJWT",
     "passlib[bcrypt]",
+    "pydantic-settings",
 ]
