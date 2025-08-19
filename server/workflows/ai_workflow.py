@@ -66,9 +66,56 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     """Classify intent, extract entities, and apply default assumptions."""
     logger.info("Step 2: Intent & query understanding")
 
+    prompt = state.get("prompt", "")
+    client = OpenAI(api_key=settings.LLM_API_KEY)
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "intent_extraction",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "intent": {"type": "string"},
+                    "entities": {
+                        "type": "object",
+                        "properties": {
+                            "metrics": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "dimensions": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "timeframe": {"type": "string"},
+                        },
+                    },
+                },
+                "required": ["intent", "entities"],
+            },
+        },
+    }
+    message = (
+        "Determine the user's intent (analysis or advice) and extract any metrics, "
+        "dimensions, and timeframe mentioned.\n"
+        f"User request: {prompt}"
+    )
+    try:
+        resp = client.responses.create(
+            model=settings.LLM_RESPONSE_MODEL,
+            input=message,
+            response_format=response_format,
+        )
+        parsed = json.loads(resp.output[0].content[0].text)
+    except Exception as exc:  # pragma: no cover - LLM failure fallback
+        logger.exception("Failed to parse intent response: %s", exc)
+        parsed = {"intent": "analysis", "entities": {}}
+
     entities = state.get("entities", {})
     entities.setdefault("timezone", "Asia/Singapore")
     entities.setdefault("currency", "single assumed currency")
+    entities.update(parsed.get("entities", {}))
+    intent = parsed.get("intent", "analysis")
 
     questions: List[str] = []
     if not entities.get("timeframe"):
@@ -78,12 +125,6 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         questions.append("Which metrics are you interested in?")
     if not entities.get("dimensions"):
         questions.append("Which dimensions should the data be grouped by?")
-
-    prompt = state.get("prompt", "").lower()
-    if any(k in prompt for k in ["suggest", "recommend", "advice", "advise"]):
-        intent = "advice"
-    else:
-        intent = "analysis"
 
     state["entities"] = entities
     state["intent"] = state.get("intent", intent)

@@ -13,6 +13,7 @@ React + Vite front end and a FastAPI backend.
   within token limits, and each summary records its last refresh time
 - Inline error messages with cleared loading indicators for failed API calls
 - Summarization failures are logged and warnings emitted after repeated errors
+- Intent classification and entity extraction are handled by an LLM instead of keyword heuristics
 
 ## Structure
 
@@ -124,7 +125,9 @@ sequenceDiagram
 ### AI workflow steps
 
 The assistant adapts its path based on the user's intent. After any
-clarification, requests branch into advice or data-driven flows.
+clarification, requests branch into advice or data-driven flows. Intent and
+entity recognition are powered by an LLM that extracts metrics, dimensions, and
+timeframes from the user's prompt.
 
 ```mermaid
 flowchart TD
