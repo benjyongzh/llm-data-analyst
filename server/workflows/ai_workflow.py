@@ -54,6 +54,8 @@ class WorkflowState(TypedDict, total=False):
     timeframe: str
     timezone: str
     currency: str
+    available_charts: List[str]
+    model_name: str
 
 
 def prompt_intake(state: WorkflowState) -> WorkflowState:
@@ -68,6 +70,7 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     logger.info("Step 2: Intent & query understanding")
 
     prompt = state.get("prompt", "")
+    history = state.get("history", "")
     client = OpenAI(api_key=settings.LLM_API_KEY)
     response_format = {
         "type": "json_schema",
@@ -99,7 +102,7 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     message = (
         "Determine the user's intent (analysis or advice) and extract any metrics, "
         "dimensions, and timeframe mentioned.\n"
-        f"User request: {prompt}"
+        f"Conversation so far:\n{history}\nUser request: {prompt}"
     )
     try:
         resp = client.responses.create(
