@@ -13,6 +13,7 @@ contextual details:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -22,6 +23,7 @@ from langgraph.graph import END, StateGraph
 from openai import OpenAI
 
 from ..config import settings
+from ..services import conversation_service
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
@@ -65,9 +67,56 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     """Classify intent, extract entities, and apply default assumptions."""
     logger.info("Step 2: Intent & query understanding")
 
+    prompt = state.get("prompt", "")
+    client = OpenAI(api_key=settings.LLM_API_KEY)
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "intent_extraction",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "intent": {"type": "string"},
+                    "entities": {
+                        "type": "object",
+                        "properties": {
+                            "metrics": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "dimensions": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "timeframe": {"type": "string"},
+                        },
+                    },
+                },
+                "required": ["intent", "entities"],
+            },
+        },
+    }
+    message = (
+        "Determine the user's intent (analysis or advice) and extract any metrics, "
+        "dimensions, and timeframe mentioned.\n"
+        f"User request: {prompt}"
+    )
+    try:
+        resp = client.responses.create(
+            model=settings.LLM_RESPONSE_MODEL,
+            input=message,
+            response_format=response_format,
+        )
+        parsed = json.loads(resp.output[0].content[0].text)
+    except Exception as exc:  # pragma: no cover - LLM failure fallback
+        logger.exception("Failed to parse intent response: %s", exc)
+        parsed = {"intent": "analysis", "entities": {}}
+
     entities = state.get("entities", {})
     entities.setdefault("timezone", "Asia/Singapore")
     entities.setdefault("currency", "single assumed currency")
+    entities.update(parsed.get("entities", {}))
+    intent = parsed.get("intent", "analysis")
 
     questions: List[str] = []
     if not entities.get("timeframe"):
@@ -77,12 +126,6 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         questions.append("Which metrics are you interested in?")
     if not entities.get("dimensions"):
         questions.append("Which dimensions should the data be grouped by?")
-
-    prompt = state.get("prompt", "").lower()
-    if any(k in prompt for k in ["suggest", "recommend", "advice", "advise"]):
-        intent = "advice"
-    else:
-        intent = "analysis"
 
     state["entities"] = entities
     state["intent"] = state.get("intent", intent)
@@ -362,7 +405,23 @@ def result_validation(state: WorkflowState) -> WorkflowState:
 def conversation_summary(state: WorkflowState) -> WorkflowState:
     """Summarize the conversation and log outputs."""
     logger.info("Step 9: Conversation summary & logging")
-    state["summary"] = "Conversation summarized."
+    conv_id = state.get("conversation_id")
+    if conv_id:
+        try:
+            try:
+                result = asyncio.run(
+                    conversation_service.summarize_conversation(conv_id)
+                )
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                result = loop.run_until_complete(
+                    conversation_service.summarize_conversation(conv_id)
+                )
+            if result:
+                summary_text, _last_id = result
+                state["summary"] = summary_text
+        except Exception:
+            logger.exception("Conversation summarization failed for %s", conv_id)
     return state
 
 
@@ -381,7 +440,13 @@ def validation_router(state: WorkflowState) -> str:
 
 def clarification_router(state: WorkflowState) -> str:
     """Route back for questions, escalate, or continue if complete."""
-    if state.get("needs_clarification") or state.get("clarification_escalated"):
+    if state.get("needs_clarification"):
+        attempts = state.get("clarification_attempts", 0)
+        limit = state.get("clarification_limit", 3)
+        if not state.get("clarification_escalated") and attempts < limit:
+            return "intent_understanding"
+        return END
+    if state.get("clarification_escalated"):
         return END
     return "task_planning"
 

@@ -15,6 +15,7 @@ React + Vite front end and a FastAPI backend.
 - Summarization failures are logged and warnings emitted after repeated errors
 - Guardrail checks validate generated SQL and responses, detecting PII or
   profanity and halting the workflow on violations
+- Intent classification and entity extraction are handled by an LLM instead of keyword heuristics
 
 ## Structure
 
@@ -70,16 +71,21 @@ JWT cookie unless noted.
 - `GET /conversations` – list conversations for the current user
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
-- `POST /conversations/{id}/query` – send a prompt and receive chart data
+- `POST /conversations/{id}/query` – send a prompt and receive chart data. If
+  clarification is needed, the response includes `needs_clarification` and a
+  list of `clarification_questions`. Answer them using the
+  `clarification_answers` field in a follow-up request.
 
 ## Backend workflow
 
 Each conversation stores the database connection it should use. When a user
 sends a query, the API fetches the associated connection, gathers recent
-messages for context, and calls the LLM to produce chart-ready data. The
-resulting chart suggestions are saved as assistant messages. After each
-assistant response, the conversation is summarized and stored so later
-requests only need the summary plus the most recent messages.
+messages for context, and checks whether more details are needed. If so, it
+returns clarification questions before running any SQL. Otherwise it calls the
+LLM to produce chart-ready data. The resulting chart suggestions are saved as
+assistant messages. After each assistant response, the conversation is
+summarized and stored so later requests only need the summary plus the most
+recent messages.
 
 ```mermaid
 flowchart LR
@@ -128,7 +134,9 @@ sequenceDiagram
 ### AI workflow steps
 
 The assistant adapts its path based on the user's intent. After any
-clarification, requests branch into advice or data-driven flows.
+clarification, requests branch into advice or data-driven flows. Intent and
+entity recognition are powered by an LLM that extracts metrics, dimensions, and
+timeframes from the user's prompt.
 
 ```mermaid
 flowchart TD
@@ -150,6 +158,11 @@ flowchart TD
 
 Advice-only paths bypass data retrieval and visualization, generating a
 direct narrative response from the user's prompt.
+
+During the **Conversation summary** step, the workflow calls the conversation
+service to generate and persist a running summary of the dialogue. The returned
+text and the id of the last processed message are stored in the database and
+made available to downstream nodes via the workflow state.
 
 ### Data model
 

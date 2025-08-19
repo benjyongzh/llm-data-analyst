@@ -8,6 +8,7 @@ from ....schemas import (
     ConversationListItem,
 )
 from ....services import conversation_service, llm_service
+from ....workflows.ai_workflow import intent_understanding, clarification
 from ....auth import verify_token
 from ....config import settings
 
@@ -58,6 +59,18 @@ async def conversation_query(
     await conversation_service.add_message(
         conversation_id, "user", {"text": request.prompt}
     )
+
+    state = {"prompt": request.prompt}
+    if request.clarification_answers:
+        state["clarification_answers"] = request.clarification_answers
+    state = intent_understanding(state)
+    state = clarification(state)
+    if state.get("needs_clarification"):
+        return QueryResponse(
+            charts=[],
+            needs_clarification=True,
+            clarification_questions=state.get("clarification_questions", []),
+        )
 
     data = await llm_service.extract_data(
         full_prompt, db_conn, request.model_name
