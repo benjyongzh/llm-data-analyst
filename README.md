@@ -12,6 +12,7 @@ React + Vite front end and a FastAPI backend.
 - Conversations are summarized after each assistant reply to keep context
   within token limits, and each summary records its last refresh time
 - Inline error messages with cleared loading indicators for failed API calls
+- Summarization failures are logged and warnings emitted after repeated errors
 
 ## Structure
 
@@ -33,6 +34,8 @@ uv sync
 uv run uvicorn server.main:app --reload
 ```
 
+Configuration values are loaded with `pydantic-settings` so you can define them in a `.env` file.
+
 Environment variables:
 
 - `LLM_API_KEY` – API key for the LLM provider
@@ -41,6 +44,7 @@ Environment variables:
 - `ENVIRONMENT` – set to `production` to enable secure cookie settings
 - `LLM_RESPONSE_MODEL` – LLM model used for final summaries
 - `DATABASE_URL` – connection string for the application's metadata DB
+- `LOG_LEVEL` – logging level for the backend (default `INFO`)
 
 ## API overview
 

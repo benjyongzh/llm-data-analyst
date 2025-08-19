@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     JWT_EXP_SECONDS: int = 86400
     ENVIRONMENT: str = "development"
     LLM_RESPONSE_MODEL: str = "gpt-4o-mini"
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

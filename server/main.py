@@ -1,4 +1,6 @@
 """FastAPI application serving the data analyst chatbot."""
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,6 +8,11 @@ from .api.v1.routes import (
     users_router,
     db_connections_router,
     conversations_router,
+)
+from .config import settings
+
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 )
 
 app = FastAPI(title="LLM Data Analyst")
