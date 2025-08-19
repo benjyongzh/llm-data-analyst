@@ -114,20 +114,29 @@ sequenceDiagram
 
 ### AI workflow steps
 
+The assistant adapts its path based on the user's intent. After any
+clarification, requests branch into advice or data-driven flows.
+
 ```mermaid
 flowchart TD
     A[Prompt intake] --> B[Intent understanding]
     B --> C{Needs clarification?}
     C -->|Yes| D[Clarification loop]
     D --> B
-    C -->|No| E[Task planning]
-    E --> F[Data retrieval]
-    F --> G[Visualization spec]
-    G --> H[Response generation]
-    H --> I[Result validation]
-    I --> J[Conversation summary]
-    J --> K[Monitoring]
+    C -->|No| E{Intent type?}
+    E -->|Advice| F[Task planning]
+    E -->|Data or Combo| G[Task planning + data plan]
+    F --> H[Response generation]
+    G --> I[Data retrieval]
+    I --> J[Visualization spec]
+    J --> H
+    H --> K[Result validation]
+    K --> L[Conversation summary]
+    L --> M[Monitoring]
 ```
+
+Advice-only paths bypass data retrieval and visualization, generating a
+direct narrative response from the user's prompt.
 
 ### Data model
 

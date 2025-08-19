@@ -77,8 +77,14 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     if not entities.get("dimensions"):
         questions.append("Which dimensions should the data be grouped by?")
 
+    prompt = state.get("prompt", "").lower()
+    if any(k in prompt for k in ["suggest", "recommend", "advice", "advise"]):
+        intent = "advice"
+    else:
+        intent = "analysis"
+
     state["entities"] = entities
-    state["intent"] = state.get("intent", "analysis")
+    state["intent"] = state.get("intent", intent)
     state["needs_clarification"] = bool(questions)
     state["clarification_questions"] = questions
     return state
@@ -113,8 +119,20 @@ def clarification(state: WorkflowState) -> WorkflowState:
 def task_planning(state: WorkflowState) -> WorkflowState:
     """Plan required actions and select tools."""
     logger.info("Step 4: Task planning & tool selection")
-    state["plan"] = {"use_db": True, "visualization": True}
+    intent = state.get("intent", "analysis")
+    if intent == "advice":
+        state["plan"] = {"use_db": False, "visualization": False}
+    else:
+        state["plan"] = {"use_db": True, "visualization": True}
     return state
+
+
+def task_router(state: WorkflowState) -> str:
+    """Branch to data retrieval or skip to response generation."""
+    plan = state.get("plan", {})
+    if plan.get("use_db"):
+        return "data_retrieval"
+    return "response_generation"
 
 
 def data_retrieval(state: WorkflowState) -> WorkflowState:
@@ -269,14 +287,21 @@ def response_generation(state: WorkflowState) -> WorkflowState:
         return state
 
     client = OpenAI(api_key=settings.LLM_API_KEY)
-    data_json = json.dumps(state.get("data", []))
-    spec_json = json.dumps(state.get("chart_spec", {}))
-    prompt = (
-        "Provide a concise, user-facing summary of the following data. "
-        "Reference the chart specification when relevant.\n"
-        f"Data: {data_json}\n"
-        f"Chart spec: {spec_json}"
-    )
+    intent = state.get("intent", "analysis")
+    if intent == "advice":
+        prompt = (
+            "Provide data-analytics-related advice or suggestions for the following request.\n"
+            f"Request: {state.get('prompt', '')}"
+        )
+    else:
+        data_json = json.dumps(state.get("data", []))
+        spec_json = json.dumps(state.get("chart_spec", {}))
+        prompt = (
+            "Provide a concise, user-facing summary of the following data. "
+            "Reference the chart specification when relevant.\n"
+            f"Data: {data_json}\n"
+            f"Chart spec: {spec_json}"
+        )
 
     resp = client.responses.create(
         model=settings.LLM_RESPONSE_MODEL,
@@ -331,7 +356,7 @@ def build_workflow() -> StateGraph[WorkflowState]:
     builder.add_edge("prompt_intake", "intent_understanding")
     builder.add_edge("intent_understanding", "clarification")
     builder.add_conditional_edges("clarification", clarification_router)
-    builder.add_edge("task_planning", "data_retrieval")
+    builder.add_conditional_edges("task_planning", task_router)
     builder.add_edge("data_retrieval", "visualization_spec")
     builder.add_edge("visualization_spec", "response_generation")
     builder.add_edge("response_generation", "result_validation")
