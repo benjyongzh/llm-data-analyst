@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Depends
 from ....schemas import (
     ConversationCreateRequest,
@@ -7,8 +9,9 @@ from ....schemas import (
     ConversationDetail,
     ConversationListItem,
 )
-from ....services import conversation_service, llm_service
-from ....workflows.ai_workflow import intent_understanding, clarification
+from ....services import conversation_service
+from ....workflows import build_workflow
+from ....workflows.ai_workflow import WorkflowState
 from ....auth import verify_token
 from ....config import settings
 
@@ -53,39 +56,46 @@ async def conversation_query(
     for msg in context["messages"]:
         text = msg["content"].get("text", "")
         history_parts.append(f"{msg['role']}: {text}")
-    history_parts.append(f"user: {request.prompt}")
-    full_prompt = "\n".join(history_parts)
+    history = "\n".join(history_parts)
 
     await conversation_service.add_message(
         conversation_id, "user", {"text": request.prompt}
     )
 
-    state = {"prompt": request.prompt}
-    if request.clarification_answers:
-        state["clarification_answers"] = request.clarification_answers
-    state = intent_understanding(state)
-    state = clarification(state)
+    dsn = (
+        f"postgresql://{db_conn.user}:{db_conn.password}"
+        f"@{db_conn.host}:{db_conn.port}/{db_conn.db_name}"
+    )
+    state: WorkflowState = {
+        "conversation_id": conversation_id,
+        "prompt": request.prompt,
+        "history": history,
+        "db_url": dsn,
+        "available_charts": request.available_charts,
+        "model_name": request.model_name,
+    }
+
+    workflow = build_workflow()
+    state = await asyncio.to_thread(workflow.invoke, state)
+
     if state.get("needs_clarification"):
         return QueryResponse(
-            charts=[],
             needs_clarification=True,
             clarification_questions=state.get("clarification_questions", []),
         )
 
-    data = await llm_service.extract_data(
-        full_prompt, db_conn, request.model_name
-    )
-    charts = await llm_service.choose_charts(
-        full_prompt, request.available_charts, data, request.model_name
-    )
-
     await conversation_service.add_message(
         conversation_id,
         "assistant",
-        {"charts": [chart.model_dump() for chart in charts]},
+        {
+            "response": state.get("response"),
+            "chart_spec": state.get("chart_spec"),
+        },
     )
 
-    return QueryResponse(charts=charts)
+    return QueryResponse(
+        response=state.get("response"), chart_spec=state.get("chart_spec")
+    )
 
 
 @router.get("", response_model=list[ConversationListItem])

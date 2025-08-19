@@ -69,19 +69,21 @@ JWT cookie unless noted.
 - `GET /conversations` – list conversations for the current user
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
-- `POST /conversations/{id}/query` – send a prompt and receive chart data. If
+- `POST /conversations/{id}/query` – send a prompt and run the AI workflow. If
   clarification is needed, the response includes `needs_clarification` and a
-  list of `clarification_questions`. Answer them using the
-  `clarification_answers` field in a follow-up request.
+  list of `clarification_questions`. Otherwise the payload contains the
+  workflow's `response` text and a `chart_spec` object for rendering. Simply
+  reply with another prompt to answer any clarification questions.
 
 ## Backend workflow
 
 Each conversation stores the database connection it should use. When a user
 sends a query, the API fetches the associated connection, gathers recent
 messages for context, and checks whether more details are needed. If so, it
-returns clarification questions before running any SQL. Otherwise it calls the
-LLM to produce chart-ready data. The resulting chart suggestions are saved as
-assistant messages. After each assistant response, the conversation is
+returns clarification questions before running any SQL. Otherwise it executes
+the LangGraph workflow to produce an assistant `response` and `chart_spec`.
+The resulting specification is saved as an assistant message. After each
+assistant response, the conversation is
 summarized and stored so later requests only need the summary plus the most
 recent messages.
 
@@ -90,9 +92,9 @@ flowchart LR
     U[User] -->|query| API
     API -->|lookup| DB[(PostgreSQL)]
     API -->|prompt + data| LLM
-    LLM -->|charts| API
+    LLM -->|analysis| API
     API -->|assistant message| DB
-    API -->|response| U
+    API -->|response + chart spec| U
 ```
 
 ### Detailed request flow
@@ -114,7 +116,7 @@ sequenceDiagram
     API->>LLM: Summarize rows into chart data
     LLM-->>API: Chart spec + summary
     API->>DB: Persist assistant response
-    API-->>U: Return chart suggestion
+    API-->>U: Return response + chart spec
 ```
 
 1. **Resolve connection** – the API looks up the conversation to find the
@@ -123,9 +125,11 @@ sequenceDiagram
    SQL statement and chart plan.
 3. **Execute SQL** – the generated query runs against the conversation’s
    database and returns rows.
-4. **Summarize results** – rows are fed back to the LLM to craft a chart and
-   natural‑language summary, which are saved as an assistant message.
-5. **Respond to user** – the API returns the chart suggestion to the client.
+4. **Summarize results** – rows are fed back to the LLM to craft a chart
+   specification and natural‑language summary, which are saved as an assistant
+   message.
+5. **Respond to user** – the API returns the generated response and chart
+   specification to the client.
 
 ### AI workflow steps
 
