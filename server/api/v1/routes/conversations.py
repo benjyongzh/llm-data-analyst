@@ -7,7 +7,10 @@ from ....schemas import (
     ConversationDetail,
     ConversationListItem,
 )
-from ....services import conversation_service, llm_service
+import asyncio
+
+from ....services import conversation_service
+from ....workflows.ai_workflow import build_workflow, WorkflowState
 from ....auth import verify_token
 from ....config import settings
 
@@ -52,27 +55,39 @@ async def conversation_query(
     for msg in context["messages"]:
         text = msg["content"].get("text", "")
         history_parts.append(f"{msg['role']}: {text}")
-    history_parts.append(f"user: {request.prompt}")
-    full_prompt = "\n".join(history_parts)
+    history = "\n".join(history_parts)
 
     await conversation_service.add_message(
         conversation_id, "user", {"text": request.prompt}
     )
 
-    data = await llm_service.extract_data(
-        full_prompt, db_conn, request.model_name
+    db_url = (
+        f"postgresql://{db_conn.user}:{db_conn.password}@"
+        f"{db_conn.host}:{db_conn.port}/{db_conn.db_name}"
     )
-    charts = await llm_service.choose_charts(
-        full_prompt, request.available_charts, data, request.model_name
-    )
+
+    workflow = build_workflow()
+    state: WorkflowState = {
+        "conversation_id": conversation_id,
+        "prompt": request.prompt,
+        "history": history,
+        "db_url": db_url,
+    }
+    result = await asyncio.to_thread(workflow.invoke, state)
 
     await conversation_service.add_message(
         conversation_id,
         "assistant",
-        {"charts": [chart.model_dump() for chart in charts]},
+        {
+            "text": result.get("response"),
+            "chart_spec": result.get("chart_spec"),
+        },
     )
 
-    return QueryResponse(charts=charts)
+    return QueryResponse(
+        response=result.get("response", ""),
+        chart_spec=result.get("chart_spec"),
+    )
 
 
 @router.get("", response_model=list[ConversationListItem])

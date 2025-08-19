@@ -68,23 +68,24 @@ JWT cookie unless noted.
 - `GET /conversations` – list conversations for the current user
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
-- `POST /conversations/{id}/query` – send a prompt and receive chart data
+- `POST /conversations/{id}/query` – run the AI workflow and receive a response and chart spec
 
 ## Backend workflow
 
 Each conversation stores the database connection it should use. When a user
 sends a query, the API fetches the associated connection, gathers recent
-messages for context, and calls the LLM to produce chart-ready data. The
-resulting chart suggestions are saved as assistant messages. After each
-assistant response, the conversation is summarized and stored so later
-requests only need the summary plus the most recent messages.
+messages for context, and runs a LangGraph-based workflow. The workflow may
+query the database and call the LLM to produce a narrative response and chart
+specification, which are saved as assistant messages. After each assistant
+response, the conversation is summarized and stored so later requests only
+need the summary plus the most recent messages.
 
 ```mermaid
 flowchart LR
     U[User] -->|query| API
     API -->|lookup| DB[(PostgreSQL)]
-    API -->|prompt + data| LLM
-    LLM -->|charts| API
+    API -->|workflow| LLM
+    LLM -->|response + chart spec| API
     API -->|assistant message| DB
     API -->|response| U
 ```
@@ -101,25 +102,18 @@ sequenceDiagram
     U->>API: POST /conversations/{id}/query
     API->>DB: Fetch conversation & selected connection
     API->>DB: Load recent messages for context
-    API->>LLM: Prompt with messages and schema
-    LLM-->>API: SQL + chart plan
-    API->>DB: Execute SQL on bound connection
-    DB-->>API: Result rows
-    API->>LLM: Summarize rows into chart data
-    LLM-->>API: Chart spec + summary
+    API->>LLM: Run workflow with prompt and context
+    LLM-->>API: Response + chart spec
     API->>DB: Persist assistant response
-    API-->>U: Return chart suggestion
+    API-->>U: Return response + chart spec
 ```
 
 1. **Resolve connection** – the API looks up the conversation to find the
    bound database connection and recent messages.
-2. **Generate query** – context and schema are sent to the LLM to obtain an
-   SQL statement and chart plan.
-3. **Execute SQL** – the generated query runs against the conversation’s
-   database and returns rows.
-4. **Summarize results** – rows are fed back to the LLM to craft a chart and
-   natural‑language summary, which are saved as an assistant message.
-5. **Respond to user** – the API returns the chart suggestion to the client.
+2. **Run workflow** – the LangGraph workflow uses the prompt and context to
+   analyze data and generate an assistant reply with a chart specification.
+3. **Persist response** – the assistant output is stored as a message.
+4. **Respond to user** – the API returns the response and chart spec to the client.
 
 ### AI workflow steps
 

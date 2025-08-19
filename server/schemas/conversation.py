@@ -21,9 +21,10 @@ class ConversationQueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response payload containing chart suggestions and data."""
+    """Response payload containing the assistant reply and chart spec."""
 
-    charts: List[ChartData]
+    response: str
+    chart_spec: Dict[str, Any] | None = None
 
 
 class ConversationCreateRequest(BaseModel):
