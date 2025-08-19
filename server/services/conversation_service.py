@@ -1,9 +1,15 @@
 import asyncio
 import json
+import logging
+from collections import Counter
 from typing import Any, Dict, Optional
 
 from ..db.database import get_pool
 from ..schemas.db_connection import DBConnection
+
+
+logger = logging.getLogger(__name__)
+_summary_failures: Counter[str] = Counter()
 
 
 def _estimate_tokens_from_text(text: str) -> int:
@@ -183,9 +189,15 @@ async def summarize_conversation(conversation_id: str, token_limit: int = 1000) 
                     last_message_id,
                     token_count,
                 )
-    except Exception:
-        # Background task should not raise; ignore failures silently.
-        pass
+    except Exception as e:
+        _summary_failures[conversation_id] += 1
+        logger.exception("Failed to summarize conversation %s: %s", conversation_id, e)
+        if _summary_failures[conversation_id] >= 3:
+            logger.warning(
+                "Conversation %s has %d summarization failures",
+                conversation_id,
+                _summary_failures[conversation_id],
+            )
 
 
 async def get_context(
