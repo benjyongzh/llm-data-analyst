@@ -391,7 +391,13 @@ def monitoring(state: WorkflowState) -> WorkflowState:
 
 def clarification_router(state: WorkflowState) -> str:
     """Route back for questions, escalate, or continue if complete."""
-    if state.get("needs_clarification") or state.get("clarification_escalated"):
+    if state.get("needs_clarification"):
+        attempts = state.get("clarification_attempts", 0)
+        limit = state.get("clarification_limit", 3)
+        if not state.get("clarification_escalated") and attempts < limit:
+            return "intent_understanding"
+        return END
+    if state.get("clarification_escalated"):
         return END
     return "task_planning"
 

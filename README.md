@@ -69,16 +69,21 @@ JWT cookie unless noted.
 - `GET /conversations` – list conversations for the current user
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
-- `POST /conversations/{id}/query` – send a prompt and receive chart data
+- `POST /conversations/{id}/query` – send a prompt and receive chart data. If
+  clarification is needed, the response includes `needs_clarification` and a
+  list of `clarification_questions`. Answer them using the
+  `clarification_answers` field in a follow-up request.
 
 ## Backend workflow
 
 Each conversation stores the database connection it should use. When a user
 sends a query, the API fetches the associated connection, gathers recent
-messages for context, and calls the LLM to produce chart-ready data. The
-resulting chart suggestions are saved as assistant messages. After each
-assistant response, the conversation is summarized and stored so later
-requests only need the summary plus the most recent messages.
+messages for context, and checks whether more details are needed. If so, it
+returns clarification questions before running any SQL. Otherwise it calls the
+LLM to produce chart-ready data. The resulting chart suggestions are saved as
+assistant messages. After each assistant response, the conversation is
+summarized and stored so later requests only need the summary plus the most
+recent messages.
 
 ```mermaid
 flowchart LR

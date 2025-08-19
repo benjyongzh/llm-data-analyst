@@ -18,12 +18,15 @@ class ConversationQueryRequest(BaseModel):
     prompt: str
     available_charts: List[str]
     model_name: str
+    clarification_answers: Optional[Dict[str, Any]] = None
 
 
 class QueryResponse(BaseModel):
     """Response payload containing chart suggestions and data."""
 
     charts: List[ChartData]
+    needs_clarification: bool = False
+    clarification_questions: Optional[List[str]] = None
 
 
 class ConversationCreateRequest(BaseModel):
