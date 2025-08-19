@@ -11,6 +11,7 @@ React + Vite front end and a FastAPI backend.
 - Toggleable sidebar for switching conversations and configuring connections
 - Conversations are summarized after each assistant reply to keep context
   within token limits, and each summary records its last refresh time
+- Summarization failures are logged and warnings emitted after repeated errors
 
 ## Structure
 
@@ -40,6 +41,7 @@ Environment variables:
 - `ENVIRONMENT` – set to `production` to enable secure cookie settings
 - `LLM_RESPONSE_MODEL` – LLM model used for final summaries
 - `DATABASE_URL` – connection string for the application's metadata DB
+- `LOG_LEVEL` – logging level for the backend (default `INFO`)
 
 ## API overview
 
