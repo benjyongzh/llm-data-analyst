@@ -9,8 +9,8 @@ React + Vite front end and a FastAPI backend.
 - Manage and enable/disable database connections
 - Create conversations and retrieve full message history
 - Toggleable sidebar for switching conversations and configuring connections
-- Conversations are summarized after each assistant reply to keep context
-  within token limits, and each summary records its last refresh time
+- Conversations are summarized after each assistant reply using an LLM to keep
+  context within token limits, and each summary records its last refresh time
 - Inline error messages with cleared loading indicators for failed API calls
 - Summarization failures are logged and warnings emitted after repeated errors
 - Guardrail checks validate generated SQL and responses, detecting PII or
@@ -164,9 +164,10 @@ Advice-only paths bypass data retrieval and visualization, generating a
 direct narrative response from the user's prompt.
 
 During the **Conversation summary** step, the workflow calls the conversation
-service to generate and persist a running summary of the dialogue. The returned
-text and the id of the last processed message are stored in the database and
-made available to downstream nodes via the workflow state.
+service to generate and persist a running summary of the dialogue. The service
+invokes an LLM to merge the previous summary with the latest messages. The
+returned text and the id of the last processed message are stored in the
+database and made available to downstream nodes via the workflow state.
 
 ### Data model
 

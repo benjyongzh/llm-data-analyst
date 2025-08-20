@@ -4,6 +4,9 @@ import logging
 from collections import Counter
 from typing import Any, Dict, Optional, Tuple
 
+from openai import OpenAI
+
+from ..config import settings
 from ..db.database import get_pool
 from ..schemas.db_connection import DBConnection
 
@@ -112,12 +115,12 @@ async def add_message(
 async def summarize_conversation(
     conversation_id: str, token_limit: int = 1000
 ) -> Optional[Tuple[str, str]]:
-    """Summarize conversation messages and upsert into convo_summary.
+    """Summarize conversation messages with an LLM and upsert into ``convo_summary``.
 
-    The summary concatenates the existing summary (if any) with new messages
-    since the last summarized message. The resulting text is truncated to
-    ``token_limit`` tokens (approximate) and stored along with the id of the
-    latest message it covers.
+    The existing summary (if any) and new messages since the last summarized
+    message are sent to an LLM which returns an updated description of the
+    conversation so far. The result is stored along with the id of the latest
+    message it covers.
 
     Returns:
         Tuple of ``(summary_text, last_message_id)`` if successful, otherwise ``None``.
@@ -154,20 +157,32 @@ async def summarize_conversation(
             )
             if not rows:
                 return summary_text, last_message_id
-            parts = []
-            if summary_text:
-                parts.append(summary_text)
+
+            messages_text = []
             for r in rows:
                 text = r["content"].get("text") if isinstance(r["content"], dict) else None
                 if text:
-                    parts.append(f"{r['role']}: {text}")
-            combined = "\n".join(parts)
-            tokens = _estimate_tokens_from_text(combined)
-            while tokens > token_limit and parts:
-                parts.pop(0)
-                combined = "\n".join(parts)
-                tokens = _estimate_tokens_from_text(combined)
-            summary_text = combined[-1000:]
+                    messages_text.append(f"{r['role']}: {text}")
+
+            prompt_parts = []
+            if summary_text:
+                prompt_parts.append(f"Existing summary:\n{summary_text}")
+            prompt_parts.append("New messages:\n" + "\n".join(messages_text))
+            prompt = "\n\n".join(prompt_parts)
+
+            def _run() -> str:
+                client = OpenAI(api_key=settings.LLM_API_KEY)
+                instruction = (
+                    "Update the conversation summary to reflect the entire conversation so far. "
+                    f"Keep the summary under {token_limit} tokens."
+                )
+                resp = client.responses.create(
+                    model=settings.LLM_RESPONSE_MODEL,
+                    input=f"{instruction}\n{prompt}",
+                )
+                return resp.output[0].content[0].text.strip()
+
+            summary_text = await asyncio.to_thread(_run)
             token_count = _estimate_tokens_from_text(summary_text)
             last_message_id = rows[-1]["id"]
             if summary_row:
