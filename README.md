@@ -80,10 +80,11 @@ JWT cookie unless noted.
 ## Backend workflow
 
 Each conversation stores the database connection it should use. When a user
-sends a query, the API fetches the associated connection, gathers recent
-messages for context, and checks whether more details are needed. If so, it
-returns clarification questions before running any SQL. Otherwise it executes
-the LangGraph workflow to produce an assistant `response` and `chart_spec`.
+sends a query, the API fetches the associated connection and records the prompt.
+The workflow's prompt intake step then gathers recent messages for context and
+checks whether more details are needed. If so, it returns clarification
+questions before running any SQL. Otherwise it executes the LangGraph workflow
+to produce an assistant `response` and `chart_spec`.
 The resulting specification is saved as an assistant message. After each
 assistant response, the conversation is
 summarized and stored so later requests only need the summary plus the most
