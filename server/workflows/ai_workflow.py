@@ -34,6 +34,7 @@ class WorkflowState(TypedDict, total=False):
     """Shared state passed between workflow nodes."""
 
     conversation_id: str
+    user_id: str
     prompt: str
     history: str
     intent: str
@@ -61,7 +62,36 @@ class WorkflowState(TypedDict, total=False):
 def prompt_intake(state: WorkflowState) -> WorkflowState:
     """Receive the user prompt and load conversation history."""
     logger.info("Step 1: Prompt intake for conversation %s", state.get("conversation_id"))
-    state.setdefault("history", "")
+    conv_id = state.get("conversation_id")
+    user_id = state.get("user_id")
+    if conv_id and user_id:
+        try:
+            try:
+                context = asyncio.run(
+                    conversation_service.get_context(conv_id, user_id)
+                )
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+                context = loop.run_until_complete(
+                    conversation_service.get_context(conv_id, user_id)
+                )
+            messages = context.get("messages", [])
+            if messages and messages[-1].get("role") == "user":
+                messages = messages[:-1]
+            history_parts = []
+            if context.get("summary"):
+                history_parts.append(context["summary"])
+            for msg in messages:
+                text = msg["content"].get("text", "")
+                history_parts.append(f"{msg['role']}: {text}")
+            state["history"] = "\n".join(history_parts)
+        except Exception:
+            logger.exception(
+                "Failed to load conversation history for %s", conv_id
+            )
+            state["history"] = ""
+    else:
+        state.setdefault("history", "")
     return state
 
 
