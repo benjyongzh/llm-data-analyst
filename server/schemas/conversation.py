@@ -24,8 +24,6 @@ class QueryResponse(BaseModel):
     """Response payload from the workflow."""
     response: Optional[str] = None
     chart_spec: Optional[Dict[str, Any]] = None
-    needs_clarification: bool = False
-    clarification_questions: Optional[List[str]] = None
 
 
 class ConversationCreateRequest(BaseModel):

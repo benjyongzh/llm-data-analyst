@@ -6,14 +6,9 @@ export type DBConnection = {
   port: number
 }
 
-export type ChartData = {
-  chart_type: string
-  data: unknown
-  reasoning?: string | null
-}
-
 export type QueryResponse = {
-  charts: ChartData[]
+  response?: string | null
+  chart_spec?: Record<string, unknown> | null
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'

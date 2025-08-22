@@ -23,7 +23,7 @@ from langgraph.graph import END, StateGraph
 from openai import OpenAI
 
 from ..config import settings
-from ..services import conversation_service
+# from ..services import conversation_service
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
@@ -52,6 +52,7 @@ class WorkflowState(TypedDict, total=False):
     chart_spec: Dict[str, Any]
     response: str
     summary: str
+    messages: List[Dict[str, Any]]
     timeframe: str
     timezone: str
     currency: str
@@ -59,39 +60,26 @@ class WorkflowState(TypedDict, total=False):
     model_name: str
 
 
-def prompt_intake(state: WorkflowState) -> WorkflowState:
+def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
     """Receive the user prompt and load conversation history."""
     logger.info("Step 1: Prompt intake for conversation %s", state.get("conversation_id"))
     conv_id = state.get("conversation_id")
-    user_id = state.get("user_id")
-    if conv_id and user_id:
-        try:
-            try:
-                context = asyncio.run(
-                    conversation_service.get_context(conv_id, user_id)
-                )
-            except RuntimeError:
-                loop = asyncio.get_event_loop()
-                context = loop.run_until_complete(
-                    conversation_service.get_context(conv_id, user_id)
-                )
-            messages = context.get("messages", [])
-            if messages and messages[-1].get("role") == "user":
-                messages = messages[:-1]
-            history_parts = []
-            if context.get("summary"):
-                history_parts.append(context["summary"])
-            for msg in messages:
-                text = msg["content"].get("text", "")
+    if conv_id and checkpointer:
+        history = checkpointer.load(conv_id)
+        summary = history.get("summary", "")
+        messages = history.get("messages", [])
+        history_parts: List[str] = []
+        if summary:
+            history_parts.append(summary)
+        for msg in messages:
+            text = msg.get("content", {}).get("text")
+            if text:
                 history_parts.append(f"{msg['role']}: {text}")
+        if history_parts:
             state["history"] = "\n".join(history_parts)
-        except Exception:
-            logger.exception(
-                "Failed to load conversation history for %s", conv_id
-            )
-            state["history"] = ""
-    else:
-        state.setdefault("history", "")
+        state["summary"] = summary
+        state["messages"] = messages
+    state.setdefault("history", "")
     return state
 
 
@@ -435,40 +423,40 @@ def result_validation(state: WorkflowState) -> WorkflowState:
     return state
 
 
-def conversation_summary(state: WorkflowState) -> WorkflowState:
-    """Summarize the conversation and log outputs."""
-    logger.info("Step 9: Conversation summary & logging")
-    conv_id = state.get("conversation_id")
-    if conv_id:
-        try:
-            try:
-                result = asyncio.run(
-                    conversation_service.summarize_conversation(conv_id)
-                )
-            except RuntimeError:
-                loop = asyncio.get_event_loop()
-                result = loop.run_until_complete(
-                    conversation_service.summarize_conversation(conv_id)
-                )
-            if result:
-                summary_text, _last_id = result
-                state["summary"] = summary_text
-        except Exception:
-            logger.exception("Conversation summarization failed for %s", conv_id)
-    return state
+# def conversation_summary(state: WorkflowState) -> WorkflowState:
+#     """Summarize the conversation and log outputs."""
+#     logger.info("Step 9: Conversation summary & logging")
+#     conv_id = state.get("conversation_id")
+#     if conv_id:
+#         try:
+#             try:
+#                 result = asyncio.run(
+#                     conversation_service.summarize_conversation(conv_id)
+#                 )
+#             except RuntimeError:
+#                 loop = asyncio.get_event_loop()
+#                 result = loop.run_until_complete(
+#                     conversation_service.summarize_conversation(conv_id)
+#                 )
+#             if result:
+#                 summary_text, _last_id = result
+#                 state["summary"] = summary_text
+#         except Exception:
+#             logger.exception("Conversation summarization failed for %s", conv_id)
+#     return state
 
 
 def monitoring(state: WorkflowState) -> WorkflowState:
     """Capture feedback signals for continuous improvement."""
-    logger.info("Step 10: Monitoring & continuous improvement")
+    logger.info("Step 9: Monitoring & continuous improvement")
     return state
 
 
 def validation_router(state: WorkflowState) -> str:
-    """Route to summary or halt on validation errors."""
+    """Route to monitoring or halt on validation errors."""
     if state.get("error"):
         return END
-    return "conversation_summary"
+    return "monitoring"
 
 
 def clarification_router(state: WorkflowState) -> str:
@@ -484,11 +472,14 @@ def clarification_router(state: WorkflowState) -> str:
     return "task_planning"
 
 
-def build_workflow() -> StateGraph[WorkflowState]:
+def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     """Create and compile the LangGraph workflow."""
     builder = StateGraph(WorkflowState)
 
-    builder.add_node("prompt_intake", prompt_intake)
+    def _prompt_intake(state: WorkflowState) -> WorkflowState:
+        return prompt_intake(state, checkpointer)
+
+    builder.add_node("prompt_intake", _prompt_intake)
     builder.add_node("intent_understanding", intent_understanding)
     builder.add_node("clarification", clarification)
     builder.add_node("task_planning", task_planning)
@@ -496,7 +487,7 @@ def build_workflow() -> StateGraph[WorkflowState]:
     builder.add_node("visualization_spec", visualization_spec)
     builder.add_node("response_generation", response_generation)
     builder.add_node("result_validation", result_validation)
-    builder.add_node("conversation_summary", conversation_summary)
+    # builder.add_node("conversation_summary", conversation_summary)
     builder.add_node("monitoring", monitoring)
 
     builder.set_entry_point("prompt_intake")
@@ -508,7 +499,7 @@ def build_workflow() -> StateGraph[WorkflowState]:
     builder.add_edge("visualization_spec", "response_generation")
     builder.add_edge("response_generation", "result_validation")
     builder.add_conditional_edges("result_validation", validation_router)
-    builder.add_edge("conversation_summary", "monitoring")
+    # builder.add_edge("conversation_summary", "monitoring")
     builder.add_edge("monitoring", END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)

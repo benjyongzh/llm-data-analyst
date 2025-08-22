@@ -25,7 +25,6 @@ import {
   conversationQuery,
   getConversation,
 } from '@/lib/api'
-import type { ChartData } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export type Message = { id: string; role: 'user' | 'assistant'; content: string; pending?: boolean }
@@ -33,18 +32,10 @@ export type Message = { id: string; role: 'user' | 'assistant'; content: string;
 type Props = { user: { id: string; username: string } }
 type DBConnItem = { id: string; db_name: string; host: string; port: number; user: string; enabled: boolean }
 
-function formatContent(content: { text?: string; charts?: ChartData[] }): string {
+function formatContent(content: { text?: string; response?: string; chart_spec?: Record<string, unknown> }): string {
   if (content?.text) return content.text
-  if (content?.charts) {
-    return (
-      content.charts
-        .map((c: ChartData, i: number) => {
-          const r = c.reasoning ? `\nReasoning: ${c.reasoning}` : ''
-          return `Chart #${i + 1}: ${c.chart_type}${r}\nData: ${JSON.stringify(c.data, null, 2)}`
-        })
-        .join('\n\n') || 'No charts returned.'
-    )
-  }
+  if (content?.response) return content.response
+  if (content?.chart_spec) return JSON.stringify(content.chart_spec, null, 2)
   return JSON.stringify(content)
 }
 
@@ -157,7 +148,7 @@ export default function Chat({ user }: Props) {
         available_charts: ['bar', 'line', 'pie'],
         model_name: 'gpt-4o-mini',
       })
-      const assistantText = formatContent({ charts: res.charts })
+      const assistantText = formatContent({ response: res.response, chart_spec: res.chart_spec })
       setMessagesMap((prev) => ({
         ...prev,
         [convoId!]: prev[convoId!].map((m) =>
@@ -237,7 +228,11 @@ export default function Chat({ user }: Props) {
           [id]: convo.messages.map((m) => ({
             id: m.id,
             role: m.role as 'user' | 'assistant',
-            content: formatContent(m.content as { text?: string; charts?: ChartData[] }),
+            content: formatContent(m.content as {
+              text?: string
+              response?: string
+              chart_spec?: Record<string, unknown>
+            }),
           })),
         }))
       } catch (err) {
