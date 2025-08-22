@@ -1,10 +1,10 @@
-import asyncio
+# import asyncio
 import json
 import logging
-from collections import Counter
+# from collections import Counter
 from typing import Any, Dict, Optional, Tuple
 
-from openai import OpenAI
+# from openai import OpenAI
 
 from ..config import settings
 from ..db.database import get_pool
@@ -12,7 +12,7 @@ from ..schemas.db_connection import DBConnection
 
 
 logger = logging.getLogger(__name__)
-_summary_failures: Counter[str] = Counter()
+# _summary_failures: Counter[str] = Counter()
 
 
 def _estimate_tokens_from_text(text: str) -> int:
@@ -107,168 +107,168 @@ async def add_message(
                 conversation_id,
             )
     message_id = str(row["id"])
-    if role == "assistant":
-        asyncio.create_task(summarize_conversation(conversation_id))
+    # if role == "assistant":
+    #     asyncio.create_task(summarize_conversation(conversation_id))
     return message_id
 
 
-async def summarize_conversation(
-    conversation_id: str, token_limit: int = 1000
-) -> Optional[Tuple[str, str]]:
-    """Summarize conversation messages with an LLM and upsert into ``convo_summary``.
+# async def summarize_conversation(
+#     conversation_id: str, token_limit: int = 1000
+# ) -> Optional[Tuple[str, str]]:
+#     """Summarize conversation messages with an LLM and upsert into ``convo_summary``.
+#
+#     The existing summary (if any) and new messages since the last summarized
+#     message are sent to an LLM which returns an updated description of the
+#     conversation so far. The result is stored along with the id of the latest
+#     message it covers.
+#
+#     Returns:
+#         Tuple of ``(summary_text, last_message_id)`` if successful, otherwise ``None``.
+#     """
+#     pool = await get_pool()
+#     try:
+#         async with pool.acquire() as conn:
+#             summary_row = await conn.fetchrow(
+#                 """
+#                 SELECT summary, last_message_id
+#                 FROM convo_summary
+#                 WHERE conversation_id = $1
+#                 """,
+#                 conversation_id,
+#             )
+#             summary_text = summary_row["summary"] if summary_row else ""
+#             last_message_id = summary_row["last_message_id"] if summary_row else None
+#             last_created_at = None
+#             if last_message_id:
+#                 ts_row = await conn.fetchrow(
+#                     "SELECT created_at FROM message WHERE id=$1", last_message_id
+#                 )
+#                 last_created_at = ts_row["created_at"] if ts_row else None
+#             rows = await conn.fetch(
+#                 """
+#                 SELECT id, role, content
+#                 FROM message
+#                 WHERE conversation_id=$1
+#                   AND ($2::timestamptz IS NULL OR created_at > $2)
+#                 ORDER BY created_at
+#                 """,
+#                 conversation_id,
+#                 last_created_at,
+#             )
+#             if not rows:
+#                 return summary_text, last_message_id
 
-    The existing summary (if any) and new messages since the last summarized
-    message are sent to an LLM which returns an updated description of the
-    conversation so far. The result is stored along with the id of the latest
-    message it covers.
+#             messages_text = []
+#             for r in rows:
+#                 text = r["content"].get("text") if isinstance(r["content"], dict) else None
+#                 if text:
+#                     messages_text.append(f"{r['role']}: {text}")
 
-    Returns:
-        Tuple of ``(summary_text, last_message_id)`` if successful, otherwise ``None``.
-    """
-    pool = await get_pool()
-    try:
-        async with pool.acquire() as conn:
-            summary_row = await conn.fetchrow(
-                """
-                SELECT summary, last_message_id
-                FROM convo_summary
-                WHERE conversation_id = $1
-                """,
-                conversation_id,
-            )
-            summary_text = summary_row["summary"] if summary_row else ""
-            last_message_id = summary_row["last_message_id"] if summary_row else None
-            last_created_at = None
-            if last_message_id:
-                ts_row = await conn.fetchrow(
-                    "SELECT created_at FROM message WHERE id=$1", last_message_id
-                )
-                last_created_at = ts_row["created_at"] if ts_row else None
-            rows = await conn.fetch(
-                """
-                SELECT id, role, content
-                FROM message
-                WHERE conversation_id=$1
-                  AND ($2::timestamptz IS NULL OR created_at > $2)
-                ORDER BY created_at
-                """,
-                conversation_id,
-                last_created_at,
-            )
-            if not rows:
-                return summary_text, last_message_id
+#             prompt_parts = []
+#             if summary_text:
+#                 prompt_parts.append(f"Existing summary:\n{summary_text}")
+#             prompt_parts.append("New messages:\n" + "\n".join(messages_text))
+#             prompt = "\n\n".join(prompt_parts)
 
-            messages_text = []
-            for r in rows:
-                text = r["content"].get("text") if isinstance(r["content"], dict) else None
-                if text:
-                    messages_text.append(f"{r['role']}: {text}")
+#             def _run() -> str:
+#                 client = OpenAI(api_key=settings.LLM_API_KEY)
+#                 instruction = (
+#                     "Update the conversation summary to reflect the entire conversation so far. "
+#                     f"Keep the summary under {token_limit} tokens."
+#                 )
+#                 resp = client.responses.create(
+#                     model=settings.LLM_RESPONSE_MODEL,
+#                     input=f"{instruction}\n{prompt}",
+#                 )
+#                 return resp.output[0].content[0].text.strip()
 
-            prompt_parts = []
-            if summary_text:
-                prompt_parts.append(f"Existing summary:\n{summary_text}")
-            prompt_parts.append("New messages:\n" + "\n".join(messages_text))
-            prompt = "\n\n".join(prompt_parts)
-
-            def _run() -> str:
-                client = OpenAI(api_key=settings.LLM_API_KEY)
-                instruction = (
-                    "Update the conversation summary to reflect the entire conversation so far. "
-                    f"Keep the summary under {token_limit} tokens."
-                )
-                resp = client.responses.create(
-                    model=settings.LLM_RESPONSE_MODEL,
-                    input=f"{instruction}\n{prompt}",
-                )
-                return resp.output[0].content[0].text.strip()
-
-            summary_text = await asyncio.to_thread(_run)
-            token_count = _estimate_tokens_from_text(summary_text)
-            last_message_id = rows[-1]["id"]
-            if summary_row:
-                await conn.execute(
-                    """
-                    UPDATE convo_summary
-                    SET summary=$1, last_message_id=$2, token_count=$3, updated_at=now()
-                    WHERE conversation_id=$4
-                    """,
-                    summary_text,
-                    last_message_id,
-                    token_count,
-                    conversation_id,
-                )
-            else:
-                await conn.execute(
-                    """
-                    INSERT INTO convo_summary (
-                        conversation_id, summary, last_message_id, token_count, updated_at
-                    )
-                    VALUES ($1, $2, $3, $4, now())
-                    """,
-                    conversation_id,
-                    summary_text,
-                    last_message_id,
-                    token_count,
-                )
-            return summary_text, last_message_id
-    except Exception as e:
-        _summary_failures[conversation_id] += 1
-        logger.exception("Failed to summarize conversation %s: %s", conversation_id, e)
-        if _summary_failures[conversation_id] >= 3:
-            logger.warning(
-                "Conversation %s has %d summarization failures",
-                conversation_id,
-                _summary_failures[conversation_id],
-            )
-    return None
+#             summary_text = await asyncio.to_thread(_run)
+#             token_count = _estimate_tokens_from_text(summary_text)
+#             last_message_id = rows[-1]["id"]
+#             if summary_row:
+#                 await conn.execute(
+#                     """
+#                     UPDATE convo_summary
+#                     SET summary=$1, last_message_id=$2, token_count=$3, updated_at=now()
+#                     WHERE conversation_id=$4
+#                     """,
+#                     summary_text,
+#                     last_message_id,
+#                     token_count,
+#                     conversation_id,
+#                 )
+#             else:
+#                 await conn.execute(
+#                     """
+#                     INSERT INTO convo_summary (
+#                         conversation_id, summary, last_message_id, token_count, updated_at
+#                     )
+#                     VALUES ($1, $2, $3, $4, now())
+#                     """,
+#                     conversation_id,
+#                     summary_text,
+#                     last_message_id,
+#                     token_count,
+#                 )
+#             return summary_text, last_message_id
+#     except Exception as e:
+#         _summary_failures[conversation_id] += 1
+#         logger.exception("Failed to summarize conversation %s: %s", conversation_id, e)
+#         if _summary_failures[conversation_id] >= 3:
+#             logger.warning(
+#                 "Conversation %s has %d summarization failures",
+#                 conversation_id,
+#                 _summary_failures[conversation_id],
+#             )
+#     return None
 
 
-async def get_context(
-    conversation_id: str, user_id: str, token_limit: int = 2000
-) -> Dict[str, Any]:
-    """Fetch summary and latest messages within a token budget."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        convo = await conn.fetchrow(
-            "SELECT 1 FROM conversation WHERE id=$1 AND user_id=$2",
-            conversation_id,
-            user_id,
-        )
-        if not convo:
-            raise ValueError("Conversation not found")
-        summary_row = await conn.fetchrow(
-            "SELECT summary, last_message_id, token_count FROM convo_summary WHERE conversation_id = $1",
-            conversation_id,
-        )
-        summary = summary_row["summary"] if summary_row else None
-        total_tokens = summary_row["token_count"] if summary_row else 0
-        last_message_id = summary_row["last_message_id"] if summary_row else None
-        last_created_at = None
-        if last_message_id:
-            ts_row = await conn.fetchrow(
-                "SELECT created_at FROM message WHERE id=$1", last_message_id
-            )
-            last_created_at = ts_row["created_at"] if ts_row else None
-        rows = await conn.fetch(
-            """
-            SELECT role, content, token_count
-            FROM message
-            WHERE conversation_id = $1
-              AND ($2::timestamptz IS NULL OR created_at > $2)
-            ORDER BY created_at DESC
-            """,
-            conversation_id,
-            last_created_at,
-        )
-        messages = []
-        for r in rows:
-            tcount = r["token_count"] or _estimate_tokens_from_content(r["content"])
-            if total_tokens + tcount > token_limit:
-                break
-            messages.append({"role": r["role"], "content": r["content"]})
-            total_tokens += tcount
-        messages.reverse()
-    return {"summary": summary, "messages": messages}
+# async def get_context(
+#     conversation_id: str, user_id: str, token_limit: int = 2000
+# ) -> Dict[str, Any]:
+#     """Fetch summary and latest messages within a token budget."""
+#     pool = await get_pool()
+#     async with pool.acquire() as conn:
+#         convo = await conn.fetchrow(
+#             "SELECT 1 FROM conversation WHERE id=$1 AND user_id=$2",
+#             conversation_id,
+#             user_id,
+#         )
+#        if not convo:
+#            raise ValueError("Conversation not found")
+#        summary_row = await conn.fetchrow(
+#            "SELECT summary, last_message_id, token_count FROM convo_summary WHERE conversation_id = $1",
+#            conversation_id,
+#        )
+#        summary = summary_row["summary"] if summary_row else None
+#        total_tokens = summary_row["token_count"] if summary_row else 0
+#        last_message_id = summary_row["last_message_id"] if summary_row else None
+#        last_created_at = None
+#        if last_message_id:
+#            ts_row = await conn.fetchrow(
+#                "SELECT created_at FROM message WHERE id=$1", last_message_id
+#            )
+#            last_created_at = ts_row["created_at"] if ts_row else None
+#        rows = await conn.fetch(
+#            """
+#            SELECT role, content, token_count
+#            FROM message
+#            WHERE conversation_id = $1
+#              AND ($2::timestamptz IS NULL OR created_at > $2)
+#            ORDER BY created_at DESC
+#            """,
+#            conversation_id,
+#            last_created_at,
+#        )
+#        messages = []
+#        for r in rows:
+#            tcount = r["token_count"] or _estimate_tokens_from_content(r["content"])
+#            if total_tokens + tcount > token_limit:
+#                break
+#            messages.append({"role": r["role"], "content": r["content"]})
+#            total_tokens += tcount
+#        messages.reverse()
+#     return {"summary": summary, "messages": messages}
 
 
 async def list_conversations(user_id: str):

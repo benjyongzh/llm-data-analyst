@@ -11,6 +11,7 @@ from ....schemas import (
 )
 from ....services import conversation_service
 from ....workflows import build_workflow
+from ....workflows.checkpointer import ConversationCheckpointer
 from ....workflows.ai_workflow import WorkflowState
 from ....auth import verify_token
 from ....config import settings
@@ -64,27 +65,42 @@ async def conversation_query(
         "model_name": request.model_name,
     }
 
-    workflow = build_workflow()
-    state = await asyncio.to_thread(workflow.invoke, state)
+    checkpointer = ConversationCheckpointer(k=settings.CONVERSATION_MEMORY_K)
+    workflow = build_workflow(checkpointer=checkpointer)
+    config = {"configurable": {"thread_id": conversation_id}}
+    state = await asyncio.to_thread(workflow.invoke, state, config=config)
 
+    response_text = state.get("response")
     if state.get("needs_clarification"):
-        return QueryResponse(
-            needs_clarification=True,
-            clarification_questions=state.get("clarification_questions", []),
-        )
+        questions = state.get("clarification_questions", [])
+        response_text = "\n".join(questions)
 
     await conversation_service.add_message(
         conversation_id,
         "assistant",
         {
-            "response": state.get("response"),
+            "response": response_text,
             "chart_spec": state.get("chart_spec"),
         },
     )
 
-    return QueryResponse(
-        response=state.get("response"), chart_spec=state.get("chart_spec")
+    result = QueryResponse(
+        response=response_text, chart_spec=state.get("chart_spec")
     )
+
+    # Update conversation memory
+    new_messages = [
+        {"role": "user", "content": {"text": request.prompt}},
+        {
+            "role": "assistant",
+            "content": {"text": response_text or ""}},
+    ]
+    summary = state.get("summary", "")
+    messages = state.get("messages", [])
+    history_update = {"summary": summary, "messages": messages + new_messages}
+    checkpointer.save(conversation_id, history_update)
+
+    return result
 
 
 @router.get("", response_model=list[ConversationListItem])

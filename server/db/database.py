@@ -54,12 +54,20 @@ CREATE TABLE IF NOT EXISTS message (
 );
 CREATE INDEX IF NOT EXISTS idx_message_convo_created ON message (conversation_id, created_at);
 
-CREATE TABLE IF NOT EXISTS convo_summary (
+-- CREATE TABLE IF NOT EXISTS convo_summary (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   conversation_id UUID NOT NULL UNIQUE REFERENCES conversation(id) ON DELETE CASCADE,
+--   summary VARCHAR(1000) NOT NULL,
+--   last_message_id UUID NOT NULL REFERENCES message(id),
+--   token_count INT,
+--   created_at TIMESTAMPTZ DEFAULT now(),
+--   updated_at TIMESTAMPTZ DEFAULT now()
+-- );
+
+CREATE TABLE IF NOT EXISTS conversation_checkpoint (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL UNIQUE REFERENCES conversation(id) ON DELETE CASCADE,
-  summary VARCHAR(1000) NOT NULL,
-  last_message_id UUID NOT NULL REFERENCES message(id),
-  token_count INT,
+  checkpoint JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
