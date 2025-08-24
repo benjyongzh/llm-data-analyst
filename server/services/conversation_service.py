@@ -255,12 +255,17 @@ async def add_message(
 #     return {"summary": summary, "messages": messages}
 
 
-async def list_conversations(user_id: str):
+async def list_conversations(user_id: str) -> List[Dict[str, Any]]:
     """Return ids and titles for a user's conversations."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, title FROM conversation WHERE user_id=$1 ORDER BY created_at DESC",
+            """
+            SELECT id, title
+            FROM conversation
+            WHERE user_id = $1
+            ORDER BY updated_at DESC
+            """,
             user_id,
         )
     return [{"id": str(r["id"]), "title": r["title"]} for r in rows]

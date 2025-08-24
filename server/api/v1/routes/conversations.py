@@ -108,10 +108,10 @@ async def conversation_query(
     return result
 
 
-@router.get("", response_model=list[ConversationListItem])
+@router.get("/", response_model=list[ConversationListItem])
 async def list_conversations(token_data: dict = Depends(verify_token)):
-    conns = await conversation_service.list_conversations(token_data["user_id"])
-    return conns
+    """Return the conversations belonging to the authenticated user."""
+    return await conversation_service.list_conversations(token_data["user_id"])
 
 
 @router.get("/{conversation_id}", response_model=ConversationDetail)

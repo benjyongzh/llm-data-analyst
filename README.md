@@ -71,7 +71,8 @@ JWT cookie unless noted.
 - `POST /db-connections/{id}/disable` – disable a connection
 
 ### Conversations
-- `GET /conversations` – list conversations for the current user
+- `GET /conversations` – list conversations for the current user. Returns an array
+  of objects with each conversation's `id` and optional `title`.
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
@@ -79,6 +80,14 @@ JWT cookie unless noted.
   array of parts. Each part is either `{ "type": "text" }` or `{ "type":
   "data" }` for chart specifications. If the workflow needs more details,
   follow-up questions are returned as text parts.
+
+#### List conversations response
+
+```json
+[
+  { "id": "uuid", "title": "optional" }
+]
+```
 
 #### Response schema
 
