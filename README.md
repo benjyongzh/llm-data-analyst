@@ -104,6 +104,24 @@ JWT cookie unless noted.
 }
 ```
 
+Chart specifications returned in `data` parts follow this schema:
+
+```json
+{
+  "title": "string",
+  "xAxis": {
+    "label": "string",
+    "dataType": "category" | "date" | "numeric",
+    "values": ["string" | number],
+    "unit": "string (optional)"
+  },
+  "yAxis": [
+    { "label": "string", "values": [number], "unit": "string (optional)" }
+  ],
+  "chartTypes": ["string"]
+}
+```
+
 Clarifications are included as additional text parts. The API does not split
 prompts containing multiple questions, so the front end should either prompt the
 user for a single question or issue multiple calls.

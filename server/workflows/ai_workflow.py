@@ -314,15 +314,8 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
     else:
         chart_type = "bar"
 
-    # Scales for React charting library
-    scales = {
-        "x": {"type": "time" if time_like else "band"},
-        "y": {"type": "linear"},
-    }
-
-    # Labels and metadata
+    # Build new chart specification schema
     x_label = dims[0] if dims else ""
-    y_label = measures[0] if measures else ""
     title_parts: List[str] = []
     if measures:
         title_parts.append(", ".join(measures))
@@ -330,22 +323,32 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
         title_parts.append("by " + ", ".join(dims))
     title = " ".join(title_parts) if title_parts else "Chart"
 
-    labels: Dict[str, str] = {"title": title, "x": x_label, "y": y_label}
-    if len(dims) > 1:
-        labels["color"] = dims[1]
+    x_values = [row.get(x_label) for row in data] if x_label else []
+    data_type = "category"
+    if x_values:
+        first = x_values[0]
+        if isinstance(first, (int, float)):
+            data_type = "numeric"
+        elif isinstance(first, str) and re.match(r"\d{4}-\d{2}-\d{2}", first):
+            data_type = "date"
 
-    # Simple color palette
-    colors = ["#5B8FF9", "#5AD8A6", "#5D7092", "#F6BD16"]
+    y_axes: List[Dict[str, Any]] = []
+    for m in measures:
+        values = [float(row.get(m, 0)) for row in data]
+        y_axes.append({"label": m, "values": values})
 
-    state["chart_spec"] = {
-        "chart_type": chart_type,
-        "data": data,
-        "dimensions": dims,
-        "measures": measures,
-        "scales": scales,
-        "labels": labels,
-        "colors": colors,
+    chart_spec = {
+        "title": title,
+        "xAxis": {
+            "label": x_label,
+            "dataType": data_type,
+            "values": x_values,
+        },
+        "yAxis": y_axes,
+        "chartTypes": [chart_type],
     }
+
+    state["chart_spec"] = chart_spec
     return state
 
 

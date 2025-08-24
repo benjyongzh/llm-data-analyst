@@ -6,9 +6,29 @@ export type DBConnection = {
   port: number
 }
 
+export type XAxisSpec = {
+  label: string
+  dataType: 'category' | 'date' | 'numeric'
+  values: (string | number)[]
+  unit?: string
+}
+
+export type YAxisSpec = {
+  label: string
+  values: number[]
+  unit?: string
+}
+
+export type ChartSpecification = {
+  title: string
+  xAxis: XAxisSpec
+  yAxis: YAxisSpec[]
+  chartTypes: string[]
+}
+
 export type MessageContent =
   | { type: 'text'; content: string }
-  | { type: 'data'; content: Record<string, unknown> }
+  | { type: 'data'; content: ChartSpecification }
 
 export type QueryResponse = {
   status: string

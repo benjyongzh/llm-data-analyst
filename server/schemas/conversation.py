@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Union
 
 from pydantic import BaseModel
 
@@ -20,11 +20,43 @@ class ConversationQueryRequest(BaseModel):
     model_name: str
 
 
-class MessageContent(BaseModel):
-    """Single message component."""
+class XAxisSpec(BaseModel):
+    """Metadata for the X axis of a chart."""
 
-    type: Literal["text", "data"]
-    content: Any
+    label: str
+    dataType: Literal["category", "date", "numeric"]
+    values: List[Union[str, int, float]]
+    unit: Optional[str] = None
+
+
+class YAxisSpec(BaseModel):
+    """Metadata for a Y axis series."""
+
+    label: str
+    values: List[float]
+    unit: Optional[str] = None
+
+
+class ChartSpecification(BaseModel):
+    """Schema describing chartable data."""
+
+    title: str
+    xAxis: XAxisSpec
+    yAxis: List[YAxisSpec]
+    chartTypes: List[str]
+
+
+class TextContent(BaseModel):
+    type: Literal["text"]
+    content: str
+
+
+class DataContent(BaseModel):
+    type: Literal["data"]
+    content: ChartSpecification
+
+
+MessageContent = Union[TextContent, DataContent]
 
 
 class QueryResponseData(BaseModel):
