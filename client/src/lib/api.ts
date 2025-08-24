@@ -96,7 +96,7 @@ export async function disableDbConnection(id: string, user_id: string) {
   })
 }
 
-export async function listConversations() {
+export async function getConversations() {
   return fetchJson<{ id: string; title: string | null }[]>(`${API_BASE}/conversations`, {
     credentials: 'include',
   })
