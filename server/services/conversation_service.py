@@ -1,10 +1,7 @@
 # import asyncio
 import json
 import logging
-# from collections import Counter
-from typing import Any, Dict, Optional, Tuple
-
-# from openai import OpenAI
+from typing import Any, Dict, Optional, Tuple, List
 
 from ..config import settings
 from ..db.database import get_pool
@@ -12,19 +9,6 @@ from ..schemas.db_connection import DBConnection
 
 
 logger = logging.getLogger(__name__)
-# _summary_failures: Counter[str] = Counter()
-
-
-def _estimate_tokens_from_text(text: str) -> int:
-    """Rough token estimator based on whitespace splitting."""
-    return max(1, len(text.split()))
-
-
-def _estimate_tokens_from_content(content: Dict[str, Any]) -> int:
-    text = content.get("text") if isinstance(content, dict) else None
-    if not text:
-        text = json.dumps(content)
-    return _estimate_tokens_from_text(text)
 
 
 async def create_conversation(
@@ -80,36 +64,36 @@ async def get_conversation_db_connection(
 
 async def add_message(
     conversation_id: str,
-    role: str,
-    content: Dict[str, Any],
-    token_count: Optional[int] = None,
-    parent_id: Optional[str] = None,
+    author: str,
+    contents: List[Dict[str, Any]],
 ) -> str:
     """Persist a message and return its id."""
-    if token_count is None:
-        token_count = _estimate_tokens_from_content(content)
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO message (conversation_id, role, content, token_count, parent_id)
-                VALUES ($1, $2, $3, $4, $5) RETURNING id
+                INSERT INTO message (conversation_id, author) VALUES ($1, $2) RETURNING id
                 """,
                 conversation_id,
-                role,
-                json.dumps(content),
-                token_count,
-                parent_id,
+                author,
             )
+            message_id = row["id"]
+            for c in contents:
+                await conn.execute(
+                    """
+                    INSERT INTO message_content (message_id, type, content)
+                    VALUES ($1, $2, $3)
+                    """,
+                    message_id,
+                    c["type"],
+                    json.dumps(c["content"]),
+                )
             await conn.execute(
                 "UPDATE conversation SET updated_at=now() WHERE id=$1",
                 conversation_id,
             )
-    message_id = str(row["id"])
-    # if role == "assistant":
-    #     asyncio.create_task(summarize_conversation(conversation_id))
-    return message_id
+    return str(message_id)
 
 
 # async def summarize_conversation(
@@ -294,19 +278,23 @@ async def get_conversation(conversation_id: str, user_id: str) -> Dict[str, Any]
         if not convo:
             raise ValueError("Conversation not found")
         rows = await conn.fetch(
-            """SELECT id, role, content FROM message
-            WHERE conversation_id=$1 ORDER BY created_at""",
+            """
+            SELECT m.id as message_id, m.author, mc.type, mc.content
+            FROM message m
+            JOIN message_content mc ON mc.message_id = m.id
+            WHERE m.conversation_id=$1
+            ORDER BY m.created_at, mc.id
+            """,
             conversation_id,
         )
+    messages: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        mid = str(r["message_id"])
+        if mid not in messages:
+            messages[mid] = {"id": mid, "author": r["author"], "contents": []}
+        messages[mid]["contents"].append({"type": r["type"], "content": r["content"]})
     return {
         "id": str(convo["id"]),
         "title": convo["title"],
-        "messages": [
-            {
-                "id": str(r["id"]),
-                "role": r["role"],
-                "content": r["content"],
-            }
-            for r in rows
-        ],
+        "messages": list(messages.values()),
     }

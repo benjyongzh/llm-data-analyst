@@ -46,13 +46,18 @@ CREATE TABLE IF NOT EXISTS conversation (
 CREATE TABLE IF NOT EXISTS message (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL CHECK (role IN ('user','assistant','system','tool')),
-  content JSONB NOT NULL,
-  token_count INT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  parent_id UUID REFERENCES message(id)
+  author VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_message_convo_created ON message (conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS message_content (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID NOT NULL REFERENCES message(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('text','data')),
+  content JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_message_content_msg ON message_content (message_id, id);
 
 -- CREATE TABLE IF NOT EXISTS convo_summary (
 --   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

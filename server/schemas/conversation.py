@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 from pydantic import BaseModel
 
@@ -20,10 +20,24 @@ class ConversationQueryRequest(BaseModel):
     model_name: str
 
 
+class MessageContent(BaseModel):
+    """Single message component."""
+
+    type: Literal["text", "data"]
+    content: Any
+
+
+class QueryResponseData(BaseModel):
+    message: List[MessageContent]
+
+
 class QueryResponse(BaseModel):
-    """Response payload from the workflow."""
-    response: Optional[str] = None
-    chart_spec: Optional[Dict[str, Any]] = None
+    """Standardized API response."""
+
+    status: str
+    code: int
+    data: QueryResponseData
+    error: Optional[str] = None
 
 
 class ConversationCreateRequest(BaseModel):
@@ -48,8 +62,8 @@ class ConversationListItem(BaseModel):
 
 class MessageItem(BaseModel):
     id: str
-    role: str
-    content: Dict[str, Any]
+    author: str
+    contents: List[MessageContent]
 
 
 class ConversationDetail(BaseModel):

@@ -75,20 +75,27 @@ JWT cookie unless noted.
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
-  payload contains a `response` string and an optional `chart_spec` object for
-  rendering. If the workflow needs more details, follow-up questions are
-  returned in the `response` field; simply answer them with another prompt.
+  response uses a standard envelope with `status`, `code`, and a `data.message`
+  array of parts. Each part is either `{ "type": "text" }` or `{ "type":
+  "data" }` for chart specifications. If the workflow needs more details,
+  follow-up questions are returned as text parts.
 
 #### Response schema
 
 ```json
 {
-  "response": "Answer text or clarifying questions",
-  "chart_spec": { }
+  "status": "ok",
+  "code": 200,
+  "data": {
+    "message": [
+      { "type": "text", "content": "Answer text or clarifying questions" },
+      { "type": "data", "content": { } }
+    ]
+  }
 }
 ```
 
-Clarifications are included directly in `response`. The API does not split
+Clarifications are included as additional text parts. The API does not split
 prompts containing multiple questions, so the front end should either prompt the
 user for a single question or issue multiple calls.
 
@@ -218,6 +225,7 @@ erDiagram
     USER ||--o{ CONVERSATION : starts
     DB_CONNECTION ||--o{ CONVERSATION : "selected for"
     CONVERSATION ||--o{ MESSAGE : has
+    MESSAGE ||--o{ MESSAGE_CONTENT : includes
     %% CONVERSATION ||--o{ CONVO_SUMMARY : summarizes
     CONVERSATION ||--o{ CONVERSATION_CHECKPOINT : memorizes
 
@@ -254,10 +262,14 @@ erDiagram
     MESSAGE {
         uuid id PK
         uuid conversation_id FK
-        string role
-        json content
-        int token_count
+        string author
         timestamp created_at
+    }
+    MESSAGE_CONTENT {
+        uuid id PK
+        uuid message_id FK
+        string type
+        json content
     }
     %% CONVO_SUMMARY {
     %%     uuid id PK

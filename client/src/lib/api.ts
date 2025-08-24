@@ -6,9 +6,15 @@ export type DBConnection = {
   port: number
 }
 
+export type MessageContent =
+  | { type: 'text'; content: string }
+  | { type: 'data'; content: Record<string, unknown> }
+
 export type QueryResponse = {
-  response?: string | null
-  chart_spec?: Record<string, unknown> | null
+  status: string
+  code: number
+  data: { message: MessageContent[] }
+  error?: string
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -100,7 +106,7 @@ export async function getConversation(id: string) {
   return fetchJson<{
     id: string
     title: string | null
-    messages: { id: string; role: string; content: unknown }[]
+    messages: { id: string; author: string; contents: MessageContent[] }[]
   }>(`${API_BASE}/conversations/${id}`, {
     credentials: 'include',
   })
