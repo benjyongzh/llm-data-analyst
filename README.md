@@ -8,7 +8,7 @@ React + Vite front end and a FastAPI backend.
 - User registration and login with JWT stored in HTTP‑only cookies
 - Manage and enable/disable database connections
 - Create conversations and retrieve full message history
-- Toggleable sidebar for switching conversations and configuring connections
+- Toggleable sidebar for switching conversations and configuring connections, fetching conversations on mount
 - <!-- Conversations are summarized after each assistant reply using an LLM to keep
   context within token limits, and each summary records its last refresh time -->
 - Conversation history is stored via a LangGraph checkpointer backed by

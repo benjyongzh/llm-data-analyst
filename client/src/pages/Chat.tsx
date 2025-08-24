@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Send, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import {
   listDbConnections,
-  listConversations,
+  getConversations,
   createDbConnection,
   updateDbConnection,
   enableDbConnection,
@@ -101,7 +101,7 @@ export default function Chat({ user }: Props) {
       try {
         const [dbs, convs] = await Promise.all([
           listDbConnections(),
-          listConversations(),
+          getConversations(),
         ])
         setDbConns(dbs)
         setConvos(convs)
