@@ -24,19 +24,24 @@ import {
   createConversation,
   conversationQuery,
   getConversation,
+  MessageContent,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-export type Message = { id: string; role: 'user' | 'assistant'; content: string; pending?: boolean }
+export type Message = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  pending?: boolean
+}
 
 type Props = { user: { id: string; username: string } }
 type DBConnItem = { id: string; db_name: string; host: string; port: number; user: string; enabled: boolean }
 
-function formatContent(content: { text?: string; response?: string; chart_spec?: Record<string, unknown> }): string {
-  if (content?.text) return content.text
-  if (content?.response) return content.response
-  if (content?.chart_spec) return JSON.stringify(content.chart_spec, null, 2)
-  return JSON.stringify(content)
+function formatMessageContents(contents: MessageContent[]): string {
+  return contents
+    .map((c) => (c.type === 'text' ? c.content : JSON.stringify(c.content, null, 2)))
+    .join('\n')
 }
 
 function ChatBubble({ message }: { message: Message }) {
@@ -148,7 +153,7 @@ export default function Chat({ user }: Props) {
         available_charts: ['bar', 'line', 'pie'],
         model_name: 'gpt-4o-mini',
       })
-      const assistantText = formatContent({ response: res.response, chart_spec: res.chart_spec })
+      const assistantText = formatMessageContents(res.data.message)
       setMessagesMap((prev) => ({
         ...prev,
         [convoId!]: prev[convoId!].map((m) =>
@@ -227,12 +232,8 @@ export default function Chat({ user }: Props) {
           ...prev,
           [id]: convo.messages.map((m) => ({
             id: m.id,
-            role: m.role as 'user' | 'assistant',
-            content: formatContent(m.content as {
-              text?: string
-              response?: string
-              chart_spec?: Record<string, unknown>
-            }),
+            role: m.author === 'assistant' ? 'assistant' : 'user',
+            content: formatMessageContents(m.contents),
           })),
         }))
       } catch (err) {

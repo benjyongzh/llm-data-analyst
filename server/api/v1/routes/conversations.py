@@ -49,7 +49,9 @@ async def conversation_query(
         status = 400 if detail == "DB connection disabled" else 404
         raise HTTPException(status_code=status, detail=detail)
     await conversation_service.add_message(
-        conversation_id, "user", {"text": request.prompt}
+        conversation_id,
+        token_data["user_id"],
+        [{"type": "text", "content": request.prompt}],
     )
 
     dsn = (
@@ -75,17 +77,20 @@ async def conversation_query(
         questions = state.get("clarification_questions", [])
         response_text = "\n".join(questions)
 
+    assistant_contents = [{"type": "text", "content": response_text or ""}]
+    if state.get("chart_spec"):
+        assistant_contents.append({"type": "data", "content": state.get("chart_spec")})
+
     await conversation_service.add_message(
         conversation_id,
         "assistant",
-        {
-            "response": response_text,
-            "chart_spec": state.get("chart_spec"),
-        },
+        assistant_contents,
     )
 
     result = QueryResponse(
-        response=response_text, chart_spec=state.get("chart_spec")
+        status="ok",
+        code=200,
+        data={"message": assistant_contents},
     )
 
     # Update conversation memory
