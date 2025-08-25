@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS message_content (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL REFERENCES message(id) ON DELETE CASCADE,
   type VARCHAR(50) NOT NULL CHECK (type IN ('text','data')),
-  content JSONB NOT NULL
+  content JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_message_content_msg ON message_content (message_id, id);
 
