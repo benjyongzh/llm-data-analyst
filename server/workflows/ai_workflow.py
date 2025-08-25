@@ -112,14 +112,20 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
                             "timeframe": {"type": "string"},
                         },
                     },
+                    "clarification_questions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                 },
-                "required": ["intent", "entities"],
+                "required": ["intent", "entities", "clarification_questions"],
             },
         },
     }
     message = (
         "Determine the user's intent (analysis or advice) and extract any metrics, "
-        "dimensions, and timeframe mentioned.\n"
+        "dimensions, and timeframe mentioned. If the request is ambiguous or "
+        "missing details you need to fulfill it, ask clarifying questions. "
+        "Otherwise return an empty list of questions.\n"
         f"Conversation so far:\n{history}\nUser request: {prompt}"
     )
     try:
@@ -137,16 +143,11 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     entities.setdefault("timezone", "Asia/Singapore")
     entities.setdefault("currency", "single assumed currency")
     entities.update(parsed.get("entities", {}))
-    intent = parsed.get("intent", "analysis")
-
-    questions: List[str] = []
-    if not entities.get("timeframe"):
-        questions.append("What timeframe would you like to analyze?")
+    if "timeframe" not in entities:
         entities["timeframe"] = "last 12 months"
-    if not entities.get("metrics"):
-        questions.append("Which metrics are you interested in?")
-    if not entities.get("dimensions"):
-        questions.append("Which dimensions should the data be grouped by?")
+
+    intent = parsed.get("intent", "analysis")
+    questions: List[str] = parsed.get("clarification_questions", [])
 
     state["entities"] = entities
     state["intent"] = state.get("intent", intent)
