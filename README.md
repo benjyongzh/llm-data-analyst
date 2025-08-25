@@ -297,6 +297,7 @@ erDiagram
         uuid message_id FK
         string type
         json content
+        timestamp created_at
     }
     %% CONVO_SUMMARY {
     %%     uuid id PK
