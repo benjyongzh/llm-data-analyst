@@ -66,17 +66,23 @@ async def add_message(
     conversation_id: str,
     author: str,
     contents: List[Dict[str, Any]],
+    user_id: Optional[str] = None,
 ) -> str:
     """Persist a message and return its id."""
+    if author == "user" and user_id is None:
+        raise ValueError("user_id must be provided when author is 'user'")
+    if author != "user":
+        user_id = None
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO message (conversation_id, author) VALUES ($1, $2) RETURNING id
+                INSERT INTO message (conversation_id, author, user_id) VALUES ($1, $2, $3) RETURNING id
                 """,
                 conversation_id,
                 author,
+                user_id,
             )
             message_id = row["id"]
             for c in contents:
@@ -284,7 +290,7 @@ async def get_conversation(conversation_id: str, user_id: str) -> Dict[str, Any]
             raise ValueError("Conversation not found")
         rows = await conn.fetch(
             """
-            SELECT m.id as message_id, m.author, mc.type, mc.content
+            SELECT m.id as message_id, m.author, m.user_id, mc.type, mc.content
             FROM message m
             JOIN message_content mc ON mc.message_id = m.id
             WHERE m.conversation_id=$1
@@ -296,7 +302,12 @@ async def get_conversation(conversation_id: str, user_id: str) -> Dict[str, Any]
     for r in rows:
         mid = str(r["message_id"])
         if mid not in messages:
-            messages[mid] = {"id": mid, "author": r["author"], "contents": []}
+            messages[mid] = {
+                "id": mid,
+                "author": r["author"],
+                "user_id": str(r["user_id"]) if r["user_id"] else None,
+                "contents": [],
+            }
         messages[mid]["contents"].append({"type": r["type"], "content": r["content"]})
     return {
         "id": str(convo["id"]),

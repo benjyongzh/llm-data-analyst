@@ -95,6 +95,7 @@ class ConversationListItem(BaseModel):
 class MessageItem(BaseModel):
     id: str
     author: str
+    user_id: Optional[str] = None
     contents: List[MessageContent]
 
 

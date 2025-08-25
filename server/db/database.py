@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS message (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
   author VARCHAR(255) NOT NULL,
+  user_id UUID REFERENCES app_user(id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_message_convo_created ON message (conversation_id, created_at);
