@@ -50,8 +50,9 @@ async def conversation_query(
         raise HTTPException(status_code=status, detail=detail)
     await conversation_service.add_message(
         conversation_id,
-        token_data["user_id"],
+        "user",
         [{"type": "text", "content": request.prompt}],
+        token_data["user_id"],
     )
 
     dsn = (

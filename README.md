@@ -290,6 +290,7 @@ erDiagram
         uuid id PK
         uuid conversation_id FK
         string author
+        uuid user_id FK
         timestamp created_at
     }
     MESSAGE_CONTENT {
