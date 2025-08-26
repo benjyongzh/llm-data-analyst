@@ -8,6 +8,7 @@ from .api.v1.routes import (
     users_router,
     db_connections_router,
     conversations_router,
+    step_logs_router,
 )
 from .config import settings
 
@@ -28,3 +29,4 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(db_connections_router)
 app.include_router(conversations_router)
+app.include_router(step_logs_router)

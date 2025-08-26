@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS conversation_checkpoint (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS workflow_step_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID NOT NULL REFERENCES message(id) ON DELETE CASCADE,
+  step_name VARCHAR(255) NOT NULL,
+  thought TEXT,
+  plan_sql TEXT,
+  tokens_in INT DEFAULT 0,
+  tokens_out INT DEFAULT 0,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  ended_at TIMESTAMPTZ,
+  status VARCHAR(50) NOT NULL DEFAULT 'started'
+);
 """
 
 
