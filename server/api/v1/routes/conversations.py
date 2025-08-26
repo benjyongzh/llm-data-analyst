@@ -48,7 +48,7 @@ async def conversation_query(
         detail = str(exc)
         status = 400 if detail == "DB connection disabled" else 404
         raise HTTPException(status_code=status, detail=detail)
-    await conversation_service.add_message(
+    user_message_id = await conversation_service.add_message(
         conversation_id,
         "user",
         [{"type": "text", "content": request.prompt}],
@@ -61,6 +61,7 @@ async def conversation_query(
     )
     state: WorkflowState = {
         "conversation_id": conversation_id,
+        "message_id": user_message_id,
         "user_id": token_data["user_id"],
         "prompt": request.prompt,
         "db_url": dsn,

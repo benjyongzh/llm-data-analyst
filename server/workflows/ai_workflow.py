@@ -24,16 +24,86 @@ from openai import OpenAI
 
 from ..config import settings
 # from ..services import conversation_service
+from ..services import step_log_service
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
 logger = logging.getLogger(__name__)
 
 
+def track_step(step_name: str):
+    """Decorator to log step execution start and end."""
+
+    def decorator(func):
+        def wrapper(state: WorkflowState, *args, **kwargs):
+            msg_id = state.get("message_id")
+            log_id = None
+            # Clear any leftovers from previous steps
+            for key in ("tokens_in", "tokens_out", "thought", "plan_sql"):
+                state.pop(key, None)
+
+            if msg_id:
+                try:
+                    log_id = asyncio.run(
+                        step_log_service.log_step_start(msg_id, step_name)
+                    )
+                except RuntimeError:
+                    loop = asyncio.get_event_loop()
+                    log_id = loop.run_until_complete(
+                        step_log_service.log_step_start(msg_id, step_name)
+                    )
+
+            exc: Exception | None = None
+            try:
+                result = func(state, *args, **kwargs)
+            except Exception as e:  # pragma: no cover - defensive
+                result = state
+                state["error"] = str(e)
+                exc = e
+            finally:
+                tokens_in = state.pop("tokens_in", 0)
+                tokens_out = state.pop("tokens_out", 0)
+                thought = state.pop("thought", None)
+                plan_sql = state.pop("plan_sql", None)
+                status = "error" if exc or state.get("error") else "success"
+                if msg_id and log_id:
+                    try:
+                        asyncio.run(
+                            step_log_service.log_step_end(
+                                log_id,
+                                tokens_in=tokens_in,
+                                tokens_out=tokens_out,
+                                status=status,
+                                thought=thought,
+                                plan_sql=plan_sql,
+                            )
+                        )
+                    except RuntimeError:
+                        loop = asyncio.get_event_loop()
+                        loop.run_until_complete(
+                            step_log_service.log_step_end(
+                                log_id,
+                                tokens_in=tokens_in,
+                                tokens_out=tokens_out,
+                                status=status,
+                                thought=thought,
+                                plan_sql=plan_sql,
+                            )
+                        )
+            if exc:
+                raise exc
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 class WorkflowState(TypedDict, total=False):
     """Shared state passed between workflow nodes."""
 
     conversation_id: str
+    message_id: str
     user_id: str
     prompt: str
     history: str
@@ -58,8 +128,14 @@ class WorkflowState(TypedDict, total=False):
     currency: str
     available_charts: List[str]
     model_name: str
+    thought: str
+    sql: str
+    plan_sql: str
+    tokens_in: int
+    tokens_out: int
 
 
+@track_step("prompt_intake")
 def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
     """Receive the user prompt and load conversation history."""
     logger.info("Step 1: Prompt intake for conversation %s", state.get("conversation_id"))
@@ -80,9 +156,11 @@ def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
         state["summary"] = summary
         state["messages"] = messages
     state.setdefault("history", "")
+    state["thought"] = "Loaded conversation context"
     return state
 
 
+@track_step("intent_understanding")
 def intent_understanding(state: WorkflowState) -> WorkflowState:
     """Classify intent, extract entities, and apply default assumptions."""
     logger.info("Step 2: Intent & query understanding")
@@ -128,13 +206,18 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         "Otherwise return an empty list of questions.\n"
         f"Conversation so far:\n{history}\nUser request: {prompt}"
     )
+    raw_text = ""
     try:
         resp = client.responses.create(
             model=settings.LLM_RESPONSE_MODEL,
             input=message,
             response_format=response_format,
         )
-        parsed = json.loads(resp.output[0].content[0].text)
+        if getattr(resp, "usage", None):
+            state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
+            state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
+        raw_text = resp.output[0].content[0].text
+        parsed = json.loads(raw_text)
     except Exception as exc:  # pragma: no cover - LLM failure fallback
         logger.exception("Failed to parse intent response: %s", exc)
         parsed = {"intent": "analysis", "entities": {}}
@@ -153,9 +236,11 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     state["intent"] = state.get("intent", intent)
     state["needs_clarification"] = bool(questions)
     state["clarification_questions"] = questions
+    state["thought"] = raw_text
     return state
 
 
+@track_step("clarification")
 def clarification(state: WorkflowState) -> WorkflowState:
     """Ask clarifying questions and merge user responses."""
     logger.info("Step 3: Clarification loop")
@@ -179,9 +264,11 @@ def clarification(state: WorkflowState) -> WorkflowState:
             )
             state["clarification_escalated"] = True
             state["needs_clarification"] = False
+    state["thought"] = "Clarified user inputs"
     return state
 
 
+@track_step("task_planning")
 def task_planning(state: WorkflowState) -> WorkflowState:
     """Plan required actions and select tools."""
     logger.info("Step 4: Task planning & tool selection")
@@ -190,6 +277,7 @@ def task_planning(state: WorkflowState) -> WorkflowState:
         state["plan"] = {"use_db": False, "visualization": False}
     else:
         state["plan"] = {"use_db": True, "visualization": True}
+    state["thought"] = "Created task plan"
     return state
 
 
@@ -201,6 +289,7 @@ def task_router(state: WorkflowState) -> str:
     return "response_generation"
 
 
+@track_step("data_retrieval")
 def data_retrieval(state: WorkflowState) -> WorkflowState:
     """Retrieve and process data using SQLAlchemy reflection."""
     logger.info("Step 5: Data retrieval & processing")
@@ -274,6 +363,7 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
             state["sql"] = str(stmt)
         except Exception:  # pragma: no cover - defensive
             state["sql"] = ""
+        state["plan_sql"] = state.get("sql", "")
 
         with engine.connect() as conn:
             result = conn.execute(stmt)
@@ -285,9 +375,11 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
     finally:
         if engine:
             engine.dispose()
+    state["thought"] = "Retrieved data"
     return state
 
 
+@track_step("visualization_spec")
 def visualization_spec(state: WorkflowState) -> WorkflowState:
     """Determine chart type and build a rich chart specification."""
     logger.info("Step 6: Visualization spec & data packaging")
@@ -350,9 +442,11 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
     }
 
     state["chart_spec"] = chart_spec
+    state["thought"] = "Created visualization spec"
     return state
 
 
+@track_step("response_generation")
 def response_generation(state: WorkflowState) -> WorkflowState:
     """Compose a narrative summary and attach chart spec for the frontend."""
     logger.info("Step 7: Response generation & delivery")
@@ -381,15 +475,21 @@ def response_generation(state: WorkflowState) -> WorkflowState:
         model=settings.LLM_RESPONSE_MODEL,
         input=prompt,
     )
+    if getattr(resp, "usage", None):
+        state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
+        state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
     state["response"] = resp.output[0].content[0].text.strip()
+    state["thought"] = state["response"]
     return state
 
 
+@track_step("result_validation")
 def result_validation(state: WorkflowState) -> WorkflowState:
     """Validate the response for correctness and safety."""
     logger.info("Step 8: Result validation & safety")
     sql = state.get("sql", "")
     summary = state.get("response", "")
+    state["plan_sql"] = sql
 
     # SQL allowlist: only simple SELECT statements without dangerous keywords
     if sql:
@@ -424,6 +524,7 @@ def result_validation(state: WorkflowState) -> WorkflowState:
             state["error"] = "Profanity detected in summary."
             return state
 
+    state["thought"] = "Validated result"
     return state
 
 
@@ -450,9 +551,11 @@ def result_validation(state: WorkflowState) -> WorkflowState:
 #     return state
 
 
+@track_step("monitoring")
 def monitoring(state: WorkflowState) -> WorkflowState:
     """Capture feedback signals for continuous improvement."""
     logger.info("Step 9: Monitoring & continuous improvement")
+    state["thought"] = "Monitoring step completed"
     return state
 
 
