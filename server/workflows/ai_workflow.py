@@ -700,12 +700,12 @@ def validation_router(state: WorkflowState) -> str:
 
 
 def clarification_router(state: WorkflowState) -> str:
-    """Route back for questions, escalate, or continue if complete."""
+    """Route clarifying questions to response generation or proceed."""
     if state.get("needs_clarification"):
         attempts = state.get("clarification_attempts", 0)
         limit = state.get("clarification_limit", 3)
         if not state.get("clarification_escalated") and attempts < limit:
-            return "intent_understanding"
+            return "response_generation"
         return END
     if state.get("clarification_escalated"):
         return END

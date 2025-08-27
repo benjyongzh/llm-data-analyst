@@ -201,9 +201,10 @@ sequenceDiagram
 
 ### AI workflow steps
 
-The assistant adapts its path based on the user's intent. After any
-clarification, requests branch into advice or data-driven flows. Intent and
-entity recognition are powered by an LLM that extracts metrics, dimensions, and
+The assistant adapts its path based on the user's intent. If clarification is
+needed, it routes follow-up questions through the response generation step.
+Otherwise, requests branch into advice or data-driven flows. Intent and entity
+recognition are powered by an LLM that extracts metrics, dimensions, and
 timeframes from the user's prompt.
 
 ```mermaid
