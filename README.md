@@ -200,9 +200,10 @@ sequenceDiagram
 
 ### AI workflow steps
 
-The assistant adapts its path based on the user's intent. After any
-clarification, requests branch into advice or data-driven flows. Intent and
-entity recognition are powered by an LLM that extracts metrics, dimensions, and
+The assistant adapts its path based on the user's intent. If clarification is
+needed, it routes follow-up questions through the response generation step.
+Otherwise, requests branch into advice or data-driven flows. Intent and entity
+recognition are powered by an LLM that extracts metrics, dimensions, and
 timeframes from the user's prompt.
 
 ```mermaid
@@ -210,7 +211,7 @@ flowchart TD
     A[Prompt intake] --> B[Intent understanding]
     B --> C{Needs clarification?}
     C -->|Yes| D[Clarification loop]
-    D --> B
+    D --> H[Response generation]
     C -->|No| E{Intent type?}
     E -->|Advice| F[Task planning]
     E -->|Data or Combo| G[Task planning + data plan]
@@ -239,7 +240,7 @@ compact history that is fed back into the workflow on subsequent turns.
 
 - **Prompt intake** – *Inputs:* user prompt, conversation id. *Outputs:* state seeded with checkpointed summary and latest messages.
 - **Intent understanding** – *Inputs:* state summary and messages. *Outputs:* intent classification and extracted entities.
-- **Clarification loop** – *Inputs:* unresolved request. *Outputs:* refined prompt.
+- **Clarification loop** – *Inputs:* unresolved request. *Outputs:* clarifying questions.
 - **Task planning** – *Inputs:* refined prompt and intent. *Outputs:* plan for advice or data retrieval; data flows also yield an SQL template.
 - **Data retrieval** – *Inputs:* SQL query and database connection. *Outputs:* result rows.
 - **Visualization spec** – *Inputs:* result rows and chart plan. *Outputs:* chart specification.
