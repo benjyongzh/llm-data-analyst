@@ -11,6 +11,7 @@ React + Vite front end and a FastAPI backend.
 - Toggleable sidebar for switching conversations and configuring connections, fetching conversations on mount
 - <!-- Conversations are summarized after each assistant reply using an LLM to keep
   context within token limits, and each summary records its last refresh time -->
+- Chat UI built with reusable layout and custom hooks for conversations and messages
 - Conversation history is stored via a LangGraph checkpointer backed by
   PostgreSQL, which keeps the latest K messages and summarizes older ones
 - Inline error messages with cleared loading indicators for failed API calls
