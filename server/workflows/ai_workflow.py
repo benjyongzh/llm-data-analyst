@@ -38,9 +38,11 @@ def track_step(step_name: str):
         def wrapper(state: WorkflowState, *args, **kwargs):
             msg_id = state.get("message_id")
             log_id = None
-            # Clear any leftovers from previous steps
-            for key in ("tokens_in", "tokens_out", "thought", "plan_sql"):
+            # Clear token leftovers from previous steps
+            for key in ("tokens_in", "tokens_out"):
                 state.pop(key, None)
+            thoughts = state.setdefault("thought", [])
+            start_len = len(thoughts)
 
             if msg_id:
                 try:
@@ -63,8 +65,10 @@ def track_step(step_name: str):
             finally:
                 tokens_in = state.pop("tokens_in", 0)
                 tokens_out = state.pop("tokens_out", 0)
-                thought = state.pop("thought", None)
-                plan_sql = state.pop("plan_sql", None)
+                thoughts = state.get("thought", [])
+                thought = None
+                if len(thoughts) > start_len:
+                    thought = thoughts[-1].get("thought")
                 status = "error" if exc or state.get("error") else "success"
                 if msg_id and log_id:
                     try:
@@ -75,7 +79,7 @@ def track_step(step_name: str):
                                 tokens_out=tokens_out,
                                 status=status,
                                 thought=thought,
-                                plan_sql=plan_sql,
+                                plan_sql=None,
                             )
                         )
                     except RuntimeError:
@@ -87,7 +91,7 @@ def track_step(step_name: str):
                                 tokens_out=tokens_out,
                                 status=status,
                                 thought=thought,
-                                plan_sql=plan_sql,
+                                plan_sql=None,
                             )
                         )
             if exc:
@@ -118,8 +122,6 @@ class WorkflowState(TypedDict, total=False):
     plan: Dict[str, Any]
     db_url: str
     error: str
-    data: List[Dict[str, Any]]
-    chart_spec: Dict[str, Any]
     response: str
     summary: str
     messages: List[Dict[str, Any]]
@@ -128,11 +130,11 @@ class WorkflowState(TypedDict, total=False):
     currency: str
     available_charts: List[str]
     model_name: str
-    thought: str
-    sql: str
-    plan_sql: str
+    thought: List[Dict[str, str]]
     tokens_in: int
     tokens_out: int
+    tasks: List[Dict[str, Any]]
+    current_task_index: int
 
 
 @track_step("prompt_intake")
@@ -156,7 +158,9 @@ def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
         state["summary"] = summary
         state["messages"] = messages
     state.setdefault("history", "")
-    state["thought"] = "Loaded conversation context"
+    state.setdefault("thought", []).append(
+        {"step": "prompt_intake", "thought": "Loaded conversation context"}
+    )
     return state
 
 
@@ -200,8 +204,8 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         },
     }
     message = (
-        "Determine the user's intent (analysis or advice) and extract any metrics, "
-        "dimensions, and timeframe mentioned. If the request is ambiguous or "
+        "Summarize the user's intent in a single sentence capturing all requested actions or questions. "
+        "Extract any metrics, dimensions, and timeframe mentioned. If the request is ambiguous or "
         "missing details you need to fulfill it, ask clarifying questions. "
         "Otherwise return an empty list of questions.\n"
         f"Conversation so far:\n{history}\nUser request: {prompt}"
@@ -229,14 +233,16 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     if "timeframe" not in entities:
         entities["timeframe"] = "last 12 months"
 
-    intent = parsed.get("intent", "analysis")
+    intent = parsed.get("intent", "")
     questions: List[str] = parsed.get("clarification_questions", [])
 
     state["entities"] = entities
-    state["intent"] = state.get("intent", intent)
+    state["intent"] = intent
     state["needs_clarification"] = bool(questions)
     state["clarification_questions"] = questions
-    state["thought"] = raw_text
+    state.setdefault("thought", []).append(
+        {"step": "intent_understanding", "thought": raw_text}
+    )
     return state
 
 
@@ -264,29 +270,105 @@ def clarification(state: WorkflowState) -> WorkflowState:
             )
             state["clarification_escalated"] = True
             state["needs_clarification"] = False
-    state["thought"] = "Clarified user inputs"
+    state.setdefault("thought", []).append(
+        {"step": "clarification", "thought": "Clarified user inputs"}
+    )
     return state
 
 
 @track_step("task_planning")
 def task_planning(state: WorkflowState) -> WorkflowState:
-    """Plan required actions and select tools."""
+    """Plan required actions and select tools for each step."""
     logger.info("Step 4: Task planning & tool selection")
+    prompt = state.get("prompt", "")
     intent = state.get("intent", "analysis")
-    if intent == "advice":
-        state["plan"] = {"use_db": False, "visualization": False}
-    else:
-        state["plan"] = {"use_db": True, "visualization": True}
-    state["thought"] = "Created task plan"
+    client = OpenAI(api_key=settings.LLM_API_KEY)
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "task_plan",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": {"type": "string"},
+                                "requires_data": {"type": "boolean"},
+                            },
+                            "required": ["description", "requires_data"],
+                        },
+                    }
+                },
+                "required": ["tasks"],
+            },
+        },
+    }
+    inp = (
+        "Break down the user's request into a linear sequence of tasks. "
+        "For each task, state whether database data is required.\n"
+        f"Intent: {intent}\nPrompt: {prompt}"
+    )
+    resp = client.responses.create(
+        model=settings.LLM_RESPONSE_MODEL,
+        input=inp,
+        response_format=response_format,
+    )
+    if getattr(resp, "usage", None):
+        state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
+        state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
+    try:
+        data = json.loads(resp.output[0].content[0].text)
+        planned = data.get("tasks", [])
+    except Exception:
+        planned = []
+    tasks: List[Dict[str, Any]] = []
+    for t in planned:
+        tasks.append(
+            {
+                "description": t.get("description", ""),
+                "requires_data": t.get("requires_data", False),
+                "result": None,
+                "token_in": 0,
+                "token_out": 0,
+                "sql": None,
+                "error": "",
+            }
+        )
+    state["tasks"] = tasks
+    use_db = any(t.get("requires_data") for t in tasks)
+    state["plan"] = {"use_db": use_db, "visualization": use_db}
+    state.setdefault("thought", []).append(
+        {"step": "task_planning", "thought": "Created task plan"}
+    )
     return state
 
 
-def task_router(state: WorkflowState) -> str:
-    """Branch to data retrieval or skip to response generation."""
-    plan = state.get("plan", {})
-    if plan.get("use_db"):
-        return "data_retrieval"
-    return "response_generation"
+@track_step("task_execution")
+def task_execution(state: WorkflowState) -> WorkflowState:
+    """Execute planned tasks sequentially, using data or text tools."""
+    logger.info("Step 5: Task execution")
+    tasks = state.get("tasks", [])
+    tokens_in = tokens_out = 0
+    for idx, task in enumerate(tasks):
+        state["current_task_index"] = idx
+        state.pop("error", None)
+        if task.get("requires_data"):
+            state = data_retrieval(state)
+        else:
+            state = text_generation(state)
+        tokens_in += task.get("token_in", 0)
+        tokens_out += task.get("token_out", 0)
+        if state.get("error") or task.get("error"):
+            break
+    state["tokens_in"] = tokens_in
+    state["tokens_out"] = tokens_out
+    state.setdefault("thought", []).append(
+        {"step": "task_execution", "thought": "Executed task plan"}
+    )
+    return state
 
 
 @track_step("data_retrieval")
@@ -295,20 +377,26 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
     logger.info("Step 5: Data retrieval & processing")
     db_url = state.get("db_url")
     entities = state.get("entities", {})
+    idx = state.get("current_task_index")
+    tasks = state.get("tasks", [])
+    task = tasks[idx] if isinstance(idx, int) and idx < len(tasks) else None
 
     if not db_url:
         logger.warning("No database URL provided; skipping data retrieval")
-        state["data"] = []
         state["error"] = "No database URL provided."
+        if task is not None:
+            task["error"] = state["error"]
         return state
 
     engine = None
+    sql = ""
     try:
         engine = create_engine(db_url)
     except Exception as exc:  # pragma: no cover - depends on SQLAlchemy internals
         logger.exception("Invalid database URL: %s", exc)
-        state["data"] = []
         state["error"] = "Invalid database URL."
+        if task is not None:
+            task["error"] = state["error"]
         return state
 
     try:
@@ -316,16 +404,18 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
         table_name = entities.get("table") or entities.get("table_name")
         if not table_name:
             logger.error("No table specified in entities")
-            state["data"] = []
             state["error"] = "No table specified."
+            if task is not None:
+                task["error"] = state["error"]
             return state
 
         tables = inspector.get_table_names()
         logger.debug("Reflected tables: %s", tables)
         if table_name not in tables:
             logger.error("Table %s not found", table_name)
-            state["data"] = []
             state["error"] = f"Table '{table_name}' not found."
+            if task is not None:
+                task["error"] = state["error"]
             return state
 
         metadata = MetaData()
@@ -358,24 +448,68 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
                 stmt = stmt.where(table.c[col] == val)
 
         stmt = stmt.limit(100)
-        # Store generated SQL for downstream validation
         try:
-            state["sql"] = str(stmt)
+            sql = str(stmt)
         except Exception:  # pragma: no cover - defensive
-            state["sql"] = ""
-        state["plan_sql"] = state.get("sql", "")
+            sql = ""
 
         with engine.connect() as conn:
             result = conn.execute(stmt)
-            state["data"] = [dict(row._mapping) for row in result]
+            state["_data"] = [dict(row._mapping) for row in result]
+
+        state = visualization_spec(state)
+        chart_spec = state.get("_chart_spec", {})
+        if task is not None:
+            task["sql"] = sql
+            task["result"] = {"type": "data", "content": chart_spec}
     except Exception as exc:
         logger.exception("Data retrieval failed: %s", exc)
-        state["data"] = []
         state["error"] = str(exc)
+        if task is not None:
+            task["error"] = state["error"]
     finally:
         if engine:
             engine.dispose()
-    state["thought"] = "Retrieved data"
+    success = not state.get("error")
+    thought = "Retrieved data successfully" if success else "Data retrieval failed"
+    state.setdefault("thought", []).append(
+        {"step": "data_retrieval", "thought": thought}
+    )
+    return state
+
+
+@track_step("text_generation")
+def text_generation(state: WorkflowState) -> WorkflowState:
+    """Generate a text answer for a task that doesn't require data."""
+    logger.info("Text generation sub-step")
+    idx = state.get("current_task_index")
+    tasks = state.get("tasks", [])
+    task = tasks[idx] if isinstance(idx, int) and idx < len(tasks) else None
+    if task is None:
+        state["error"] = "Invalid task index"
+        return state
+
+    client = OpenAI(api_key=settings.LLM_API_KEY)
+    prompt = (
+        f"Task: {task.get('description', '')}\n" "Provide the best possible answer."
+    )
+    resp = client.responses.create(
+        model=settings.LLM_RESPONSE_MODEL,
+        input=prompt,
+    )
+    ti = getattr(resp.usage, "input_tokens", 0) if getattr(resp, "usage", None) else 0
+    to = getattr(resp.usage, "output_tokens", 0) if getattr(resp, "usage", None) else 0
+    state["tokens_in"] = ti
+    state["tokens_out"] = to
+    task["token_in"] = ti
+    task["token_out"] = to
+    task["result"] = {
+        "type": "text",
+        "content": resp.output[0].content[0].text.strip(),
+    }
+    state.setdefault("thought", []).append(
+        {"step": "text_generation", "thought": "Generated text"}
+    )
     return state
 
 
@@ -384,7 +518,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
     """Determine chart type and build a rich chart specification."""
     logger.info("Step 6: Visualization spec & data packaging")
 
-    data: List[Dict[str, Any]] = state.get("data", [])
+    data: List[Dict[str, Any]] = state.pop("_data", [])
     entities = state.get("entities", {})
 
     # Infer dimensions and measures from entities or data sample
@@ -441,8 +575,10 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
         "chartTypes": [chart_type],
     }
 
-    state["chart_spec"] = chart_spec
-    state["thought"] = "Created visualization spec"
+    state["_chart_spec"] = chart_spec
+    state.setdefault("thought", []).append(
+        {"step": "visualization_spec", "thought": "Created visualization spec"}
+    )
     return state
 
 
@@ -455,21 +591,12 @@ def response_generation(state: WorkflowState) -> WorkflowState:
         return state
 
     client = OpenAI(api_key=settings.LLM_API_KEY)
-    intent = state.get("intent", "analysis")
-    if intent == "advice":
-        prompt = (
-            "Provide data-analytics-related advice or suggestions for the following request.\n"
-            f"Request: {state.get('prompt', '')}"
-        )
-    else:
-        data_json = json.dumps(state.get("data", []))
-        spec_json = json.dumps(state.get("chart_spec", {}))
-        prompt = (
-            "Provide a concise, user-facing summary of the following data. "
-            "Reference the chart specification when relevant.\n"
-            f"Data: {data_json}\n"
-            f"Chart spec: {spec_json}"
-        )
+    tasks_json = json.dumps(state.get("tasks", []))
+    prompt = (
+        "Create a final user-facing answer based on the following ordered task results. "
+        "If a task includes data and a chart specification, mention the chart in the response.\n"
+        f"Tasks: {tasks_json}"
+    )
 
     resp = client.responses.create(
         model=settings.LLM_RESPONSE_MODEL,
@@ -479,7 +606,9 @@ def response_generation(state: WorkflowState) -> WorkflowState:
         state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
         state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
     state["response"] = resp.output[0].content[0].text.strip()
-    state["thought"] = state["response"]
+    state.setdefault("thought", []).append(
+        {"step": "response_generation", "thought": state["response"]}
+    )
     return state
 
 
@@ -487,17 +616,17 @@ def response_generation(state: WorkflowState) -> WorkflowState:
 def result_validation(state: WorkflowState) -> WorkflowState:
     """Validate the response for correctness and safety."""
     logger.info("Step 8: Result validation & safety")
-    sql = state.get("sql", "")
+    tasks = state.get("tasks", [])
+    sql_statements = [t.get("sql", "") for t in tasks if t.get("sql")]
     summary = state.get("response", "")
-    state["plan_sql"] = sql
 
     # SQL allowlist: only simple SELECT statements without dangerous keywords
-    if sql:
-        allowed = re.compile(r"^\s*select\b", re.IGNORECASE)
-        forbidden = re.compile(
-            r";|\b(drop|delete|insert|update|alter|grant|revoke)\b",
-            re.IGNORECASE,
-        )
+    allowed = re.compile(r"^\s*select\b", re.IGNORECASE)
+    forbidden = re.compile(
+        r";|\b(drop|delete|insert|update|alter|grant|revoke)\b",
+        re.IGNORECASE,
+    )
+    for sql in sql_statements:
         if not allowed.match(sql) or forbidden.search(sql):
             state["error"] = "SQL validation failed."
             return state
@@ -524,7 +653,9 @@ def result_validation(state: WorkflowState) -> WorkflowState:
             state["error"] = "Profanity detected in summary."
             return state
 
-    state["thought"] = "Validated result"
+    state.setdefault("thought", []).append(
+        {"step": "result_validation", "thought": "Validated result"}
+    )
     return state
 
 
@@ -555,7 +686,9 @@ def result_validation(state: WorkflowState) -> WorkflowState:
 def monitoring(state: WorkflowState) -> WorkflowState:
     """Capture feedback signals for continuous improvement."""
     logger.info("Step 9: Monitoring & continuous improvement")
-    state["thought"] = "Monitoring step completed"
+    state.setdefault("thought", []).append(
+        {"step": "monitoring", "thought": "Monitoring step completed"}
+    )
     return state
 
 
@@ -590,8 +723,7 @@ def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     builder.add_node("intent_understanding", intent_understanding)
     builder.add_node("clarification", clarification)
     builder.add_node("task_planning", task_planning)
-    builder.add_node("data_retrieval", data_retrieval)
-    builder.add_node("visualization_spec", visualization_spec)
+    builder.add_node("task_execution", task_execution)
     builder.add_node("response_generation", response_generation)
     builder.add_node("result_validation", result_validation)
     # builder.add_node("conversation_summary", conversation_summary)
@@ -601,9 +733,8 @@ def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     builder.add_edge("prompt_intake", "intent_understanding")
     builder.add_edge("intent_understanding", "clarification")
     builder.add_conditional_edges("clarification", clarification_router)
-    builder.add_conditional_edges("task_planning", task_router)
-    builder.add_edge("data_retrieval", "visualization_spec")
-    builder.add_edge("visualization_spec", "response_generation")
+    builder.add_edge("task_planning", "task_execution")
+    builder.add_edge("task_execution", "response_generation")
     builder.add_edge("response_generation", "result_validation")
     builder.add_conditional_edges("result_validation", validation_router)
     # builder.add_edge("conversation_summary", "monitoring")
