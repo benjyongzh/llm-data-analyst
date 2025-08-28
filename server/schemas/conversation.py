@@ -47,12 +47,12 @@ class ChartSpecification(BaseModel):
 
 
 class TextContent(BaseModel):
-    type: Literal["text"]
+    type: Literal["text"] = "text"
     content: str
 
 
 class DataContent(BaseModel):
-    type: Literal["data"]
+    type: Literal["data"] = "data"
     content: ChartSpecification
 
 
