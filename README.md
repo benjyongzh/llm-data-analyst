@@ -29,6 +29,7 @@ React + Vite front end and a FastAPI backend.
   - `api/` – route declarations grouped by resource.
   - `schemas/` – Pydantic models for requests and responses.
   - `services/` – business logic and database access helpers.
+  - `workflows/` – LangGraph workflow; each step lives in `workflows/steps/` for readability.
   - `main.py` – creates the FastAPI app and wires the routes.
 
 ## Running the backend
