@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any, Dict, List
 
+from ...config import settings
+from ...services.llm_service import choose_charts
 from ..base import WorkflowState, logger, track_step
 
 
 @track_step("visualization_spec")
 def visualization_spec(state: WorkflowState) -> WorkflowState:
-    """Determine chart type and build a rich chart specification."""
+    """Determine chart types and build a rich chart specification."""
     logger.info("Step 6: Visualization spec & data packaging")
 
     data: List[Dict[str, Any]] = state.pop("_data", [])
@@ -25,14 +28,45 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
         if not measures:
             measures = [k for k, v in sample.items() if isinstance(v, (int, float))]
 
-    # Determine chart type based on dimensions, measures, and intent
-    time_like = [d for d in dims if any(t in d.lower() for t in ["date", "time", "year", "month", "day"])]
-    if time_like:
-        chart_type = "line"
-    elif len(measures) > 1:
-        chart_type = "bar"
-    else:
-        chart_type = "bar"
+    available = state.get("available_charts", [])
+    chart_types: List[str] = [available[0]] if available else ["bar"]
+
+    idx = state.get("current_task_index")
+    tasks = state.get("tasks", [])
+    task_desc = ""
+    if isinstance(idx, int) and idx < len(tasks):
+        task_desc = tasks[idx].get("description", "")
+    prompt = task_desc or state.get("prompt", "")
+
+    model_name = state.get("model_name", settings.LLM_RESPONSE_MODEL)
+    if available:
+        try:
+            charts = asyncio.run(
+                choose_charts(
+                    prompt=prompt,
+                    available_charts=available,
+                    data=data,
+                    model_name=model_name,
+                )
+            )
+            if charts:
+                chart_types = list(charts)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Chart selection via LLM failed: %s", exc)
+            # Fallback heuristic if LLM call fails
+            time_like = [
+                d
+                for d in dims
+                if any(t in d.lower() for t in ["date", "time", "year", "month", "day"])
+            ]
+            preferred: List[str]
+            if time_like:
+                preferred = ["line", "bar"]
+            elif len(measures) > 1:
+                preferred = ["bar", "line"]
+            else:
+                preferred = ["bar", "line"]
+            chart_types = [c for c in preferred if c in available] or [available[0]]
 
     # Build new chart specification schema
     x_label = dims[0] if dims else ""
@@ -65,7 +99,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
             "values": x_values,
         },
         "yAxis": y_axes,
-        "chartTypes": [chart_type],
+        "chartTypes": chart_types,
     }
 
     state["_chart_spec"] = chart_spec

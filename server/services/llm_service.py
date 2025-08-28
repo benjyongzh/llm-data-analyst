@@ -9,7 +9,7 @@ from langchain.agents.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
-from ..schemas import DBConnection, ChartData
+from ..schemas import DBConnection
 from ..config import settings
 
 
@@ -54,10 +54,11 @@ async def choose_charts(
     available_charts: List[str],
     data: List[Dict[str, Any]],
     model_name: str,
-) -> List[ChartData]:
-    """Ask the LLM to pick chart types and shape data for each chart."""
 
-    def _run() -> List[ChartData]:
+) -> List[str]:
+    """Ask the LLM for relevant chart types from ``available_charts``."""
+
+    def _run() -> List[str]:
         client = OpenAI(api_key=settings.LLM_API_KEY)
 
         response_format = {
@@ -67,23 +68,15 @@ async def choose_charts(
                 "schema": {
                     "type": "array",
                     "items": {
-                        "type": "object",
-                        "properties": {
-                            "chart_type": {
-                                "type": "string",
-                                "enum": available_charts,
-                            },
-                            "data": {"type": "object"},
-                            "reasoning": {"type": "string"},
-                        },
-                        "required": ["chart_type", "data"],
+                        "type": "string",
+                        "enum": available_charts,
                     },
                 },
             },
         }
 
         message = (
-            "Choose suitable charts for the user's request and shape the data for each selection.\n"
+            "Select the most appropriate chart types for the user's request.\n"
             + f"User request: {prompt}\n"
             + f"Available chart types: {available_charts}\n"
             + f"Data: {json.dumps(data)}"
@@ -96,15 +89,6 @@ async def choose_charts(
         )
 
         selections = json.loads(resp.output[0].content[0].text)
-        charts: List[ChartData] = []
-        for item in selections:
-            charts.append(
-                ChartData(
-                    chart_type=item["chart_type"],
-                    data=item["data"],
-                    reasoning=item.get("reasoning"),
-                )
-            )
-        return charts
+        return list(selections)
 
     return await asyncio.to_thread(_run)
