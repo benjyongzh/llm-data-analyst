@@ -78,17 +78,21 @@ async def conversation_query(
     state = await asyncio.to_thread(workflow.invoke, state, config=config)
 
     response_text = state.get("response")
-    if state.get("needs_clarification"):
+    questions: list[str] = []
+    if state.get("needs_clarification") or state.get("clarification_escalated"):
         questions = state.get("clarification_questions", [])
         response_text = "\n".join(questions)
 
-    assistant_contents = [TextContent(content=response_text or "").model_dump()]
-    if state.get("chart_spec"):
-        assistant_contents.append(
-            DataContent(
-                content=ChartSpecification(**state.get("chart_spec"))
-            ).model_dump()
-        )
+    if questions:
+        assistant_contents = [TextContent(content=q).model_dump() for q in questions]
+    else:
+        assistant_contents = [TextContent(content=response_text or "").model_dump()]
+        if state.get("chart_spec"):
+            assistant_contents.append(
+                DataContent(
+                    content=ChartSpecification(**state.get("chart_spec"))
+                ).model_dump()
+            )
 
     await conversation_service.add_message(
         conversation_id,
