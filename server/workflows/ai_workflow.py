@@ -25,6 +25,7 @@ from openai import OpenAI
 from ..config import settings
 # from ..services import conversation_service
 from ..services import step_log_service
+from ..schemas.conversation import DataContent, TextContent, ChartSpecification
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
 
@@ -461,7 +462,9 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
         chart_spec = state.get("_chart_spec", {})
         if task is not None:
             task["sql"] = sql
-            task["result"] = {"type": "data", "content": chart_spec}
+            task["result"] = DataContent(
+                content=ChartSpecification(**chart_spec)
+            ).model_dump()
     except Exception as exc:
         logger.exception("Data retrieval failed: %s", exc)
         state["error"] = str(exc)
@@ -503,10 +506,9 @@ def text_generation(state: WorkflowState) -> WorkflowState:
     state["tokens_out"] = to
     task["token_in"] = ti
     task["token_out"] = to
-    task["result"] = {
-        "type": "text",
-        "content": resp.output[0].content[0].text.strip(),
-    }
+    task["result"] = TextContent(
+        content=resp.output[0].content[0].text.strip()
+    ).model_dump()
     state.setdefault("thought", []).append(
         {"step": "text_generation", "thought": "Generated text"}
     )
