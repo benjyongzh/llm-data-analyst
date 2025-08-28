@@ -11,7 +11,7 @@ from ..base import WorkflowState, logger, track_step
 
 @track_step("visualization_spec")
 def visualization_spec(state: WorkflowState) -> WorkflowState:
-    """Determine chart type and build a rich chart specification."""
+    """Determine chart types and build a rich chart specification."""
     logger.info("Step 6: Visualization spec & data packaging")
 
     data: List[Dict[str, Any]] = state.pop("_data", [])
@@ -29,7 +29,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
             measures = [k for k, v in sample.items() if isinstance(v, (int, float))]
 
     available = state.get("available_charts", [])
-    chart_type = available[0] if available else "bar"
+    chart_types: List[str] = [available[0]] if available else ["bar"]
 
     idx = state.get("current_task_index")
     tasks = state.get("tasks", [])
@@ -50,7 +50,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
                 )
             )
             if charts:
-                chart_type = charts[0]
+                chart_types = list(charts)
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Chart selection via LLM failed: %s", exc)
             # Fallback heuristic if LLM call fails
@@ -66,12 +66,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
                 preferred = ["bar", "line"]
             else:
                 preferred = ["bar", "line"]
-            for ctype in preferred:
-                if ctype in available:
-                    chart_type = ctype
-                    break
-            else:
-                chart_type = available[0]
+            chart_types = [c for c in preferred if c in available] or [available[0]]
 
     # Build new chart specification schema
     x_label = dims[0] if dims else ""
@@ -104,7 +99,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
             "values": x_values,
         },
         "yAxis": y_axes,
-        "chartTypes": [chart_type],
+        "chartTypes": chart_types,
     }
 
     state["_chart_spec"] = chart_spec
