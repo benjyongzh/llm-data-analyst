@@ -8,6 +8,9 @@ from ....schemas import (
     QueryResponse,
     ConversationDetail,
     ConversationListItem,
+    DataContent,
+    TextContent,
+    ChartSpecification,
 )
 from ....services import conversation_service
 from ....workflows import build_workflow
@@ -51,7 +54,7 @@ async def conversation_query(
     user_message_id = await conversation_service.add_message(
         conversation_id,
         "user",
-        [{"type": "text", "content": request.prompt}],
+        [TextContent(content=request.prompt).model_dump()],
         token_data["user_id"],
     )
 
@@ -79,9 +82,13 @@ async def conversation_query(
         questions = state.get("clarification_questions", [])
         response_text = "\n".join(questions)
 
-    assistant_contents = [{"type": "text", "content": response_text or ""}]
+    assistant_contents = [TextContent(content=response_text or "").model_dump()]
     if state.get("chart_spec"):
-        assistant_contents.append({"type": "data", "content": state.get("chart_spec")})
+        assistant_contents.append(
+            DataContent(
+                content=ChartSpecification(**state.get("chart_spec"))
+            ).model_dump()
+        )
 
     await conversation_service.add_message(
         conversation_id,

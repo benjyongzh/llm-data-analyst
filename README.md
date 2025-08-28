@@ -81,9 +81,10 @@ JWT cookie unless noted.
 - `POST /conversations` – create a conversation bound to a DB connection
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
   response uses a standard envelope with `status`, `code`, and a `data.message`
-  array of parts. Each part is either `{ "type": "text" }` or `{ "type":
-  "data" }` for chart specifications. If the workflow needs more details,
-  follow-up questions are returned as text parts.
+  array of parts. Each part is validated using the `TextContent` or
+  `DataContent` schema to ensure consistent `{ "type": "text", "content": str }`
+  and `{ "type": "data", "content": ChartSpecification }` structures. If the
+  workflow needs more details, follow-up questions are returned as text parts.
 
 #### List conversations response
 
