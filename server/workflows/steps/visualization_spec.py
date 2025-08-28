@@ -50,7 +50,7 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
                 )
             )
             if charts:
-                chart_type = charts[0].chart_type
+                chart_type = charts[0]
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Chart selection via LLM failed: %s", exc)
             # Fallback heuristic if LLM call fails
