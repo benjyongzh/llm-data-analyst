@@ -97,7 +97,6 @@ class WorkflowState(TypedDict, total=False):
     clarification_attempts: int
     clarification_limit: int
     clarification_escalated: bool
-    plan: Dict[str, Any]
     db_url: str
     error: str
     response: str
