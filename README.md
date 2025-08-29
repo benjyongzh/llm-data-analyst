@@ -5,10 +5,12 @@ React + Vite front end and a FastAPI backend.
 
 ## Features
 
-- User registration and login with JWT stored in HTTP‑only cookies
+- User registration and login with JWT stored in HTTP‑only cookies; no credentials are kept in
+  `localStorage`
 - Manage and enable/disable database connections
 - Create conversations and retrieve full message history
 - Toggleable sidebar for switching conversations and configuring connections, fetching conversations on mount
+- Optional mock user, conversation, and message data for frontend development
 - <!-- Conversations are summarized after each assistant reply using an LLM to keep
   context within token limits, and each summary records its last refresh time -->
 - Chat UI built with reusable layout and custom hooks for conversations and messages
@@ -384,7 +386,14 @@ npm run dev
 ```
 
 The client expects the API at `http://localhost:8000`; override with
-`VITE_API_BASE_URL` in a `.env` file if needed.
+`VITE_API_BASE_URL` in a `.env` file if needed. Set `VITE_USE_MOCK_USER`
+and `VITE_USE_MOCK_CONVERSATIONS` to `true` to serve canned login data and two
+sample conversations (each with alternating user/assistant messages) without a
+running backend. Mock conversations and messages mirror the backend's database
+schema and reuse the mock user's ID for foreign keys. Set
+`VITE_USE_MOCK_DB_CONNECTIONS` to `true` to manage a local mock database
+connection for creating, updating, enabling, and disabling connections on the
+client.
 
 On first launch, register an account on the login page. After logging in, create a
 database connection from the dropdown to start a conversation and run queries.

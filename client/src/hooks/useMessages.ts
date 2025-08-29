@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { conversationQuery, createConversation } from '@/lib/api'
-import type { Message, User, Conversation } from '@/lib/types'
+import type { Message, User, ConversationListItem } from '@/lib/types'
 import { formatMessageContents } from '@/lib/utils'
 
 type Options = {
@@ -10,7 +10,7 @@ type Options = {
   setCurrentConvo: (id: string) => void
   messagesMap: Record<string, Message[]>
   setMessagesMap: React.Dispatch<React.SetStateAction<Record<string, Message[]>>>
-  setConvos: React.Dispatch<React.SetStateAction<Conversation[]>>
+  setConvos: React.Dispatch<React.SetStateAction<ConversationListItem[]>>
 }
 
 export function useMessages({
@@ -44,7 +44,7 @@ export function useMessages({
       if (!convoId) {
         if (!selectedConn) return
         const { conversation_id } = await createConversation({
-          user_id: user.id,
+          user_id: user.user_id,
           db_connection_id: selectedConn,
           title: trimmed.slice(0, 20),
         })

@@ -1,26 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Login from '@/pages/Login'
 import Chat from '@/pages/Chat'
-
-type User = { id: string; username: string }
+import type { User } from '@/lib/types'
+import { currentUserApi } from '@/lib/api'
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(() => {
-    const id = localStorage.getItem('user_id')
-    const username = localStorage.getItem('username')
-    return id && username ? { id, username } : null
-  })
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const u = await currentUserApi()
+        setUser(u)
+      } catch {
+        setUser(null)
+      }
+    }
+    checkUser()
+  }, [])
 
   if (!user) {
-    return (
-      <Login
-        onLogin={(u) => {
-          setUser(u)
-          localStorage.setItem('user_id', u.id)
-          localStorage.setItem('username', u.username)
-        }}
-      />
-    )
+    return <Login onLogin={setUser} />
   }
 
   return <Chat user={user} />

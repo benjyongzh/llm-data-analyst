@@ -97,7 +97,7 @@ export default function Chat({ user }: Props) {
     setError(null)
     setMsgError(null)
     setConnLoading(true)
-    const body = { ...connForm, user_id: user.id }
+    const body = { ...connForm, user_id: user.user_id }
     try {
       if (editingConn) {
         await updateDbConnection(editingConn, body)
@@ -116,8 +116,8 @@ export default function Chat({ user }: Props) {
   const handleToggleConn = async (id: string, enabled: boolean) => {
     setError(null)
     try {
-      if (enabled) await disableDbConnection(id, user.id)
-      else await enableDbConnection(id, user.id)
+      if (enabled) await disableDbConnection(id, user.user_id)
+      else await enableDbConnection(id, user.user_id)
       await refreshConns()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update connection')

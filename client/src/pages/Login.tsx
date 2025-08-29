@@ -10,9 +10,10 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import { loginApi, registerApi } from '@/lib/api'
+import type { User } from '@/lib/types'
 
 type Props = {
-  onLogin: (user: { id: string; username: string }) => void
+  onLogin: (user: User) => void
 }
 
 export default function Login({ onLogin }: Props) {
@@ -30,7 +31,7 @@ export default function Login({ onLogin }: Props) {
     setLoginLoading(true)
     try {
       const user = await loginApi({ username, password })
-      onLogin({ id: user.user_id, username: user.username })
+      onLogin({ user_id: user.user_id, username: user.username })
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Login failed')
     } finally {
