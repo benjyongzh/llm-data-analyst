@@ -260,7 +260,6 @@ data types:
 | `clarification_attempts` | integer | Number of clarification rounds attempted |
 | `clarification_limit` | integer | Maximum clarification attempts |
 | `clarification_escalated` | boolean | Whether the limit was exceeded |
-| `plan` | object | High-level plan flags (e.g., `use_db`) |
 | `db_url` | string | Database connection string |
 | `error` | string | Error message if a step fails |
 | `response` | string | Final natural-language reply |
@@ -287,7 +286,7 @@ shows which keys are read and how the state is updated at every step.
 | **Prompt intake** | `conversation_id` (string), `prompt` (string) | `history` (string, set from checkpoint), `summary` (string, set), `messages` (array<object>, replace), `thought` (array<object>, append) |
 | **Intent understanding** | `prompt` (string), `history` (string) | `intent` (string, set), `entities` (object, merge defaults & parsed), `clarification_questions` (array<string>, replace), `needs_clarification` (boolean, set), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
 | **Clarification loop** | `clarification_questions` (array<string>), `clarification_answers` (object), `entities` (object), `needs_clarification` (boolean), `clarification_attempts` (integer) | `entities` (object, merge answers), `needs_clarification` (boolean, set/clear), `clarification_attempts` (integer, increment), `clarification_escalated` (boolean, set when limit hit), `thought` (array<object>, append) |
-| **Task planning** | `prompt` (string), `intent` (string) | `tasks` (array<object>, replace with `{description, requires_data, result, token_in, token_out, sql, error}` defaults), `plan` (object, set), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
+| **Task planning** | `prompt` (string), `intent` (string) | `tasks` (array<object>, replace with `{description, requires_data, result, token_in, token_out, sql, error}` defaults), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
 | **Task execution** | `tasks` (array<object>), `entities` (object), `db_url` (string) | each task updated with `result`, `token_in`, `token_out`, `sql`, `error`; `tokens_in` / `tokens_out` (integer, accumulate & logged), `error` (string, set), `thought` (array<object>, append) |
 | **Data retrieval\*** | `db_url` (string), `entities` (object), `current_task_index` (integer), `tasks[current].description` (string), `available_charts` (array<string>) | `tasks[current].sql` (string, set), `tasks[current].result` (object, set to `{type: "data", content: chart_spec}`), `tasks[current].error` (string, set), `thought` (array<object>, append success/failure) |
 | **Text generation\*** | `tasks` (array<object>), `current_task_index` (integer) | `tasks[current].result` (object, set to `{type: "text", content}`), `tasks[current].token_in` / `tasks[current].token_out` (integer, set), `thought` (array<object>, append) |

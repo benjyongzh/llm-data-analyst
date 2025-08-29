@@ -71,8 +71,6 @@ def task_planning(state: WorkflowState) -> WorkflowState:
             }
         )
     state["tasks"] = tasks
-    use_db = any(t.get("requires_data") for t in tasks)
-    state["plan"] = {"use_db": use_db, "visualization": use_db}
     state.setdefault("thought", []).append(
         {"step": "task_planning", "thought": "Created task plan"}
     )
