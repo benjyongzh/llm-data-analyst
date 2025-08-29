@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { getConversations, getConversation } from '@/lib/api'
-import type { Conversation, Message } from '@/lib/types'
+import type { ConversationListItem, Message } from '@/lib/types'
 import { formatMessageContents } from '@/lib/utils'
 
 export function useConversations() {
-  const [convos, setConvos] = useState<Conversation[]>([])
+  const [convos, setConvos] = useState<ConversationListItem[]>([])
   const [currentConvo, setCurrentConvo] = useState<string | null>(null)
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>({})
   const [error, setError] = useState<string | null>(null)
