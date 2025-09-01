@@ -99,7 +99,7 @@ class WorkflowState(TypedDict, total=False):
     clarification_escalated: bool
     db_url: str
     error: str
-    response: str
+    response: Dict[str, Any]
     summary: str
     messages: List[Dict[str, Any]]
     timeframe: str

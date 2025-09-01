@@ -6,11 +6,10 @@ from ....schemas import (
     ConversationCreateResponse,
     ConversationQueryRequest,
     QueryResponse,
+    QueryResponseData,
     ConversationDetail,
     ConversationListItem,
-    DataContent,
     TextContent,
-    ChartSpecification,
 )
 from ....services import conversation_service
 from ....workflows import build_workflow
@@ -77,22 +76,19 @@ async def conversation_query(
     config = {"configurable": {"thread_id": conversation_id}}
     state = await asyncio.to_thread(workflow.invoke, state, config=config)
 
-    response_text = state.get("response")
+    response = state.get("response", {"message": []})
     questions: list[str] = []
     if state.get("needs_clarification") or state.get("clarification_escalated"):
         questions = state.get("clarification_questions", [])
-        response_text = "\n".join(questions)
 
     if questions:
         assistant_contents = [TextContent(content=q).model_dump() for q in questions]
+        response_texts = questions
     else:
-        assistant_contents = [TextContent(content=response_text or "").model_dump()]
-        if state.get("chart_spec"):
-            assistant_contents.append(
-                DataContent(
-                    content=ChartSpecification(**state.get("chart_spec"))
-                ).model_dump()
-            )
+        assistant_contents = response.get("message", [])
+        response_texts = [
+            c.get("content") for c in assistant_contents if c.get("type") == "text"
+        ]
 
     await conversation_service.add_message(
         conversation_id,
@@ -103,15 +99,13 @@ async def conversation_query(
     result = QueryResponse(
         status="ok",
         code=200,
-        data={"message": assistant_contents},
+        data=QueryResponseData(message=assistant_contents),
     )
 
     # Update conversation memory
     new_messages = [
         {"role": "user", "content": {"text": request.prompt}},
-        {
-            "role": "assistant",
-            "content": {"text": response_text or ""}},
+        {"role": "assistant", "content": {"text": "\n".join(response_texts)}},
     ]
     summary = state.get("summary", "")
     messages = state.get("messages", [])
