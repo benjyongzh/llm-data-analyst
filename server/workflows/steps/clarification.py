@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("clarification")
@@ -17,7 +17,7 @@ def clarification(state: WorkflowState) -> WorkflowState:
             entities.update(answers)
             state["entities"] = entities
             # Re-evaluate intent with the new information
-            from .intent_understanding import intent_understanding
+            from workflows.steps.intent_understanding import intent_understanding
 
             state = intent_understanding(state)
         else:

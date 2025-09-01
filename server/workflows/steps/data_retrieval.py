@@ -4,8 +4,8 @@ from typing import Any, Dict, List
 
 from sqlalchemy import MetaData, Table, create_engine, func, inspect, select
 
-from ...schemas.conversation import ChartSpecification, DataContent
-from ..base import WorkflowState, logger, track_step
+from schemas.conversation import ChartSpecification, DataContent
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("data_retrieval")
@@ -94,7 +94,7 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
             result = conn.execute(stmt)
             state["_data"] = [dict(row._mapping) for row in result]
 
-        from .visualization_spec import visualization_spec
+        from workflows.steps.visualization_spec import visualization_spec
 
         state = visualization_spec(state)
         chart_spec = state.get("_chart_spec", {})

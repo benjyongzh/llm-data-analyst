@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 
-from ....schemas import (
+from schemas import (
     DBConnectionCreateRequest,
     DBConnectionCreateResponse,
     DBConnectionUpdateRequest,
@@ -8,8 +8,8 @@ from ....schemas import (
     StatusResponse,
     DBConnectionListItem,
 )
-from ....services import db_connection_service
-from ....auth import verify_token
+from services import db_connection_service
+from auth import verify_token
 
 router = APIRouter(prefix="/db-connections")
 

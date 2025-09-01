@@ -4,8 +4,8 @@ from typing import Any, Dict
 from langgraph.checkpoint.memory import InMemorySaver
 from openai import OpenAI
 
-from ..config import settings
-from ..services import checkpoint_service
+from config import settings
+from services import checkpoint_service
 
 
 class ConversationCheckpointer(InMemorySaver):

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, TypedDict
 
-from ..services import step_log_service
+from services import step_log_service
 
 logger = logging.getLogger(__name__)
 

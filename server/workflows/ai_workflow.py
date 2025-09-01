@@ -7,17 +7,17 @@ from __future__ import annotations
 
 from langgraph.graph import END, StateGraph
 
-from .base import WorkflowState
-from .steps.prompt_intake import prompt_intake
-from .steps.intent_understanding import intent_understanding
-from .steps.clarification import clarification
-from .steps.task_planning import task_planning
-from .steps.task_execution import task_execution
-from .steps.text_generation import text_generation
-from .steps.data_retrieval import data_retrieval
-from .steps.response_generation import response_generation
-from .steps.result_validation import result_validation
-from .steps.monitoring import monitoring
+from workflows.base import WorkflowState
+from workflows.steps.prompt_intake import prompt_intake
+from workflows.steps.intent_understanding import intent_understanding
+from workflows.steps.clarification import clarification
+from workflows.steps.task_planning import task_planning
+from workflows.steps.task_execution import task_execution
+from workflows.steps.text_generation import text_generation
+from workflows.steps.data_retrieval import data_retrieval
+from workflows.steps.response_generation import response_generation
+from workflows.steps.result_validation import result_validation
+from workflows.steps.monitoring import monitoring
 
 
 def validation_router(state: WorkflowState) -> str:

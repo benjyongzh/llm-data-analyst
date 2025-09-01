@@ -1,7 +1,7 @@
 from passlib.context import CryptContext
 
-from ..db.database import get_pool
-from ..schemas.user import UserCreateRequest, UserUpdateRequest
+from db.database import get_pool
+from schemas.user import UserCreateRequest, UserUpdateRequest
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

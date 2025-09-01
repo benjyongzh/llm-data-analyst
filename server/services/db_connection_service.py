@@ -1,5 +1,5 @@
-from ..db.database import get_pool
-from ..schemas.db_connection import DBConnection
+from db.database import get_pool
+from schemas.db_connection import DBConnection
 
 
 async def create_db_connection(user_id: str, conn_info: DBConnection) -> str:

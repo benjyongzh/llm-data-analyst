@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from ..base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("result_validation")

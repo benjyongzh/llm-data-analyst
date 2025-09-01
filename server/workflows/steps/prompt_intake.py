@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ..base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("prompt_intake")

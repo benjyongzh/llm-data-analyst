@@ -44,7 +44,7 @@ dependencies and start the server with:
 ```bash
 cd server
 uv sync
-uv run uvicorn server.main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 Configuration values are loaded with `pydantic-settings` so you can define them in a `.env` file.

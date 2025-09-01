@@ -2,7 +2,7 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Depends, Response
 
-from ....schemas import (
+from schemas import (
     UserCreateRequest,
     UserCreateResponse,
     UserUpdateRequest,
@@ -10,8 +10,8 @@ from ....schemas import (
     LoginRequest,
     LoginResponse,
 )
-from ....services import user_service
-from ....auth import (
+from services import user_service
+from auth import (
     create_access_token,
     verify_token,
     verify_csrf,

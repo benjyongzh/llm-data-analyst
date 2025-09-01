@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ...schemas.conversation import QueryResponseData, TextContent
-from ..base import WorkflowState, logger, track_step
+from schemas.conversation import QueryResponseData, TextContent
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("response_generation")

@@ -1,7 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Depends
-from ....schemas import (
+from schemas import (
     ConversationCreateRequest,
     ConversationCreateResponse,
     ConversationQueryRequest,
@@ -11,12 +11,12 @@ from ....schemas import (
     ConversationListItem,
     TextContent,
 )
-from ....services import conversation_service
-from ....workflows import build_workflow
-from ....workflows.checkpointer import ConversationCheckpointer
-from ....workflows.ai_workflow import WorkflowState
-from ....auth import verify_token
-from ....config import settings
+from services import conversation_service
+from workflows import build_workflow
+from workflows.checkpointer import ConversationCheckpointer
+from workflows.ai_workflow import WorkflowState
+from auth import verify_token
+from config import settings
 
 router = APIRouter(prefix="/conversations")
 

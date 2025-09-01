@@ -9,8 +9,8 @@ from langchain.agents.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
-from ..schemas import DBConnection
-from ..config import settings
+from schemas import DBConnection
+from config import settings
 
 
 def _build_dsn(conn: DBConnection) -> str:

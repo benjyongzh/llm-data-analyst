@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from ....auth import verify_token
-from ....schemas import WorkflowStepLog
-from ....services import step_log_service
+from auth import verify_token
+from schemas import WorkflowStepLog
+from services import step_log_service
 
 
 router = APIRouter(prefix="/step-logs")

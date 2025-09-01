@@ -4,7 +4,7 @@ from typing import Optional, Dict
 import jwt
 from fastapi import HTTPException, Request
 
-from .config import settings
+from config import settings
 
 JWT_SECRET = settings.JWT_SECRET
 JWT_ALGORITHM = "HS256"

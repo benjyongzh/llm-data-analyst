@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from openai import OpenAI
 
-from ...config import settings
-from ...schemas.conversation import TextContent
-from ..base import WorkflowState, logger, track_step
+from config import settings
+from schemas.conversation import TextContent
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("text_generation")

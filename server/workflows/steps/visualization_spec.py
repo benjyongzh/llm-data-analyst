@@ -4,9 +4,9 @@ import asyncio
 import re
 from typing import Any, Dict, List
 
-from ...config import settings
-from ...services.llm_service import choose_charts
-from ..base import WorkflowState, logger, track_step
+from config import settings
+from services.llm_service import choose_charts
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("visualization_spec")

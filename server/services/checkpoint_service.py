@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, Optional
 
-from ..db.database import get_pool
+from db.database import get_pool
 
 
 async def get_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:

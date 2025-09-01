@@ -3,8 +3,8 @@
 import logging
 from typing import Optional, List
 
-from ..db.database import get_pool
-from ..schemas import WorkflowStepLog
+from db.database import get_pool
+from schemas import WorkflowStepLog
 
 
 logger = logging.getLogger(__name__)

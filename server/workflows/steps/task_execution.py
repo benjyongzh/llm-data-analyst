@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("task_execution")

@@ -5,8 +5,8 @@ from typing import Any, Dict, List
 
 from openai import OpenAI
 
-from ...config import settings
-from ..base import WorkflowState, logger, track_step
+from config import settings
+from workflows.base import WorkflowState, logger, track_step
 
 
 @track_step("intent_understanding")
