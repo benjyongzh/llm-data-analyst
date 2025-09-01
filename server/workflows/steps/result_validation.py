@@ -11,7 +11,15 @@ def result_validation(state: WorkflowState) -> WorkflowState:
     logger.info("Step 8: Result validation & safety")
     tasks = state.get("tasks", [])
     sql_statements = [t.get("sql", "") for t in tasks if t.get("sql")]
-    summary = state.get("response", "")
+    response = state.get("response", {})
+    if isinstance(response, dict):
+        contents = response.get("message", [])
+        summary_parts = [
+            c.get("content", "") for c in contents if c.get("type") == "text"
+        ]
+        summary = "\n".join(summary_parts)
+    else:
+        summary = str(response)
 
     # SQL allowlist: only simple SELECT statements without dangerous keywords
     allowed = re.compile(r"^\s*select\b", re.IGNORECASE)
