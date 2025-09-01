@@ -13,6 +13,8 @@ from .steps.intent_understanding import intent_understanding
 from .steps.clarification import clarification
 from .steps.task_planning import task_planning
 from .steps.task_execution import task_execution
+from .steps.text_generation import text_generation
+from .steps.data_retrieval import data_retrieval
 from .steps.response_generation import response_generation
 from .steps.result_validation import result_validation
 from .steps.monitoring import monitoring
@@ -34,6 +36,23 @@ def clarification_router(state: WorkflowState) -> str:
     return "task_planning"
 
 
+def execution_router(state: WorkflowState) -> str:
+    """Select text or data tasks and stop when finished or on error."""
+    tasks = state.get("tasks", [])
+    idx = state.get("current_task_index", 0)
+    prev = idx - 1
+    if state.get("error"):
+        return "response_generation"
+    if 0 <= prev < len(tasks) and tasks[prev].get("error"):
+        return "response_generation"
+    if idx >= len(tasks):
+        return "response_generation"
+    task = tasks[idx]
+    if task.get("requires_data"):
+        return "data_retrieval"
+    return "text_generation"
+
+
 def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     """Create and compile the LangGraph workflow."""
     builder = StateGraph(WorkflowState)
@@ -46,6 +65,8 @@ def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     builder.add_node("clarification", clarification)
     builder.add_node("task_planning", task_planning)
     builder.add_node("task_execution", task_execution)
+    builder.add_node("text_generation", text_generation)
+    builder.add_node("data_retrieval", data_retrieval)
     builder.add_node("response_generation", response_generation)
     builder.add_node("result_validation", result_validation)
     # builder.add_node("conversation_summary", conversation_summary)
@@ -56,7 +77,9 @@ def build_workflow(checkpointer=None) -> StateGraph[WorkflowState]:
     builder.add_edge("intent_understanding", "clarification")
     builder.add_conditional_edges("clarification", clarification_router)
     builder.add_edge("task_planning", "task_execution")
-    builder.add_edge("task_execution", "response_generation")
+    builder.add_conditional_edges("task_execution", execution_router)
+    builder.add_edge("text_generation", "task_execution")
+    builder.add_edge("data_retrieval", "task_execution")
     builder.add_edge("response_generation", "result_validation")
     builder.add_conditional_edges("result_validation", validation_router)
     # builder.add_edge("conversation_summary", "monitoring")

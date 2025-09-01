@@ -5,28 +5,19 @@ from ..base import WorkflowState, logger, track_step
 
 @track_step("task_execution")
 def task_execution(state: WorkflowState) -> WorkflowState:
-    """Execute planned tasks sequentially, using data or text tools."""
+    """Advance through the task list and accumulate token usage."""
     logger.info("Step 5: Task execution")
     tasks = state.get("tasks", [])
-    tokens_in = tokens_out = 0
-    for idx, task in enumerate(tasks):
-        state["current_task_index"] = idx
-        state.pop("error", None)
-        if task.get("requires_data"):
-            from .data_retrieval import data_retrieval
-
-            state = data_retrieval(state)
-        else:
-            from .text_generation import text_generation
-
-            state = text_generation(state)
-        tokens_in += task.get("token_in", 0)
-        tokens_out += task.get("token_out", 0)
-        if state.get("error") or task.get("error"):
-            break
-    state["tokens_in"] = tokens_in
-    state["tokens_out"] = tokens_out
+    idx = state.get("current_task_index", -1)
+    if idx == -1:
+        state["tokens_in"] = 0
+        state["tokens_out"] = 0
+    elif 0 <= idx < len(tasks):
+        task = tasks[idx]
+        state["tokens_in"] = state.get("tokens_in", 0) + task.get("token_in", 0)
+        state["tokens_out"] = state.get("tokens_out", 0) + task.get("token_out", 0)
+    state["current_task_index"] = idx + 1
     state.setdefault("thought", []).append(
-        {"step": "task_execution", "thought": "Executed task plan"}
+        {"step": "task_execution", "thought": "Advanced task pointer"}
     )
     return state

@@ -161,8 +161,8 @@ flowchart LR
     WF -->|prompt + data| LLM
     LLM -->|analysis| WF
     WF -->|memory + assistant message| DB
-    WF -->|response + chart spec| API
-    API -->|response + chart spec| U
+    WF -->|clarifying questions or result| API
+    API -->|clarifying questions or chart spec| U
 ```
 
 ### Detailed request flow
@@ -179,34 +179,44 @@ sequenceDiagram
     API->>DB: Fetch conversation & selected connection
     API->>WF: Run workflow
     WF->>DB: Load checkpointed history
-    WF->>LLM: Prompt with messages and schema
-    LLM-->>WF: SQL
-    WF->>DB: Execute SQL on bound connection
-    DB-->>WF: Result rows
-    WF->>LLM: Recommend chart types
-    LLM-->>WF: Chart type names
-    WF->>DB: Persist assistant response
-    WF-->>API: Response + chart spec
-    API-->>U: Return response + chart spec
+    WF->>LLM: Analyze prompt & plan tasks
+    LLM-->>WF: Intent, entities, tasks
+    alt Needs clarification
+        WF-->>API: Clarifying questions
+        API-->>U: Clarifying questions
+    else Continue
+        WF->>DB: Execute SQL tasks
+        DB-->>WF: Result rows
+        WF->>LLM: Recommend chart types
+        LLM-->>WF: Chart type names
+        WF->>LLM: Validate result
+        LLM-->>WF: Validation outcome
+        WF->>DB: Persist assistant response
+        WF-->>API: Response + chart spec
+        API-->>U: Return response + chart spec
+    end
 ```
 
-1. **Resolve connection**  
-   *Input:* conversation id  
+1. **Resolve connection**
+   *Input:* conversation id
    *Output:* database connection bound to the conversation.
-2. **Generate query**
+2. **Analyze intent**
    *Input:* user prompt, checkpointed summary, recent messages, and schema
-   *Output:* SQL statement.
-3. **Execute SQL**  
-   *Input:* SQL statement and database connection  
-   *Output:* result rows.
-4. **Build visualization**
+   *Output:* intent, entities, and optional clarifying questions.
+3. **Clarify request (optional)**
+   *Input:* clarifying questions and user answers
+   *Output:* updated intent and entities.
+4. **Execute tasks**
+   *Input:* intent, entities, and database connection
+   *Output:* result rows or text.
+5. **Build visualization**
    *Input:* result rows and chart options
    *Output:* chart specification and natural‑language summary saved as an assistant message.
-5. **Validate outputs**  
-   *Input:* generated SQL and summary  
+6. **Validate outputs**
+   *Input:* generated SQL and summary
    *Output:* sanitized response or guardrail violation.
-6. **Respond to user**  
-   *Input:* validated response and chart specification  
+7. **Respond to user**
+   *Input:* validated response and chart specification or clarifying questions
    *Output:* message returned to client.
 
 ### AI workflow steps
@@ -220,18 +230,30 @@ timeframes from the user's prompt.
 ```mermaid
 flowchart TD
     A[Prompt intake] --> B[Intent understanding]
-    B --> C{Needs clarification?}
-    C -->|Yes| D[Clarification loop]
-    D --> B
-    C -->|No| E[Task planning]
-    E --> F[Task execution]
-    F --> G[Response generation]
-    G --> H[Result validation]
-    H --> I[Monitoring]
+    B --> C[Clarification]
+    C --> D{Needs clarification?}
+    D -->|Yes| E[Return questions]
+    E --> Q((End))
+    D -->|No| F[Task planning]
+    F --> G[Task execution]
+    G --> H{More tasks?}
+    H -->|No| I[Response generation]
+    H -->|Yes| J{Requires data?}
+    J -->|Yes| K[Data retrieval]
+    J -->|No| L[Text generation]
+    K --> G
+    L --> G
+    I --> M[Result validation]
+    M --> N{Validation error?}
+    N -->|Yes| Q
+    N -->|No| O[Monitoring]
+    O --> Q
 ```
 
-During **Task execution**, each planned step decides whether to retrieve data
-or answer with text, ensuring complex prompts are handled linearly.
+During **Task execution**, the workflow iterates through each planned task,
+branching to dedicated **Data retrieval** or **Text generation** nodes before
+looping back for the next task. Once all tasks are complete, it proceeds to
+response generation.
 
 <!-- During the **Conversation summary** step, the workflow calls the conversation
 service to generate and persist a running summary of the dialogue. The service
@@ -284,21 +306,18 @@ data types:
 Each node receives and returns a mutable `WorkflowState` dict. The table below
 shows which keys are read and how the state is updated at every step.
 
-| Step | Consumes | State changes (type & operation) |
-| --- | --- | --- |
-| **Prompt intake** | `conversation_id` (string), `prompt` (string) | `history` (string, set from checkpoint), `summary` (string, set), `messages` (array<object>, replace), `thought` (array<object>, append) |
-| **Intent understanding** | `prompt` (string), `history` (string) | `intent` (string, set), `entities` (object, merge defaults & parsed), `clarification_questions` (array<string>, replace), `needs_clarification` (boolean, set), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
-| **Clarification loop** | `clarification_questions` (array<string>), `clarification_answers` (object), `entities` (object), `needs_clarification` (boolean), `clarification_attempts` (integer) | `entities` (object, merge answers), `needs_clarification` (boolean, set/clear), `clarification_attempts` (integer, increment), `clarification_escalated` (boolean, set when limit hit), `thought` (array<object>, append) |
-| **Task planning** | `prompt` (string), `intent` (string) | `tasks` (array<object>, replace with `{description, requires_data, result, token_in, token_out, sql, error}` defaults), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
-| **Task execution** | `tasks` (array<object>), `entities` (object), `db_url` (string) | each task updated with `result`, `token_in`, `token_out`, `sql`, `error`; `tokens_in` / `tokens_out` (integer, accumulate & logged), `error` (string, set), `thought` (array<object>, append) |
-| **Data retrieval\*** | `db_url` (string), `entities` (object), `current_task_index` (integer), `tasks[current].description` (string), `available_charts` (array<string>) | `tasks[current].sql` (string, set), `tasks[current].result` (object, set to `{type: "data", content: chart_spec}`), `tasks[current].error` (string, set), `thought` (array<object>, append success/failure) |
-| **Text generation\*** | `tasks` (array<object>), `current_task_index` (integer) | `tasks[current].result` (object, set to `{type: "text", content}`), `tasks[current].token_in` / `tasks[current].token_out` (integer, set), `thought` (array<object>, append) |
-| **Response generation** | `tasks` (array<object>) | `response` (object, set to `QueryResponseData`), `thought` (array<object>, append) |
-| **Result validation** | `tasks[].sql` (array<string>), `response` (object) | `error` (string, set/clear), `thought` (array<object>, append) |
-| **Monitoring** | `error` (string), `metrics` (object) | logs/alerts (side effect), `thought` (array<object>, append) |
-
-\*Sub-steps invoked by Task execution depending on whether a task requires
-database access or only text generation.
+| Step | Type | Consumes | State changes (type & operation) |
+| --- | --- | --- | --- |
+| **Prompt intake** | Tool | `conversation_id` (string), `prompt` (string) | `history` (string, set from checkpoint), `summary` (string, set), `messages` (array<object>, replace), `thought` (array<object>, append) |
+| **Intent understanding** | Agent | `prompt` (string), `history` (string) | `intent` (string, set), `entities` (object, merge defaults & parsed), `clarification_questions` (array<string>, replace), `needs_clarification` (boolean, set), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
+| **Clarification loop** | Agent | `clarification_questions` (array<string>), `clarification_answers` (object), `entities` (object), `needs_clarification` (boolean), `clarification_attempts` (integer) | `entities` (object, merge answers), `needs_clarification` (boolean, set/clear), `clarification_attempts` (integer, increment), `clarification_escalated` (boolean, set when limit hit), `thought` (array<object>, append) |
+| **Task planning** | Agent | `prompt` (string), `intent` (string) | `tasks` (array<object>, replace with `{description, requires_data, result, token_in, token_out, sql, error}` defaults), `tokens_in` / `tokens_out` (integer, set & logged), `thought` (array<object>, append) |
+| **Task execution** | Tool | `tasks` (array<object>), `current_task_index` (integer) | `current_task_index` (integer, increment), `tokens_in` / `tokens_out` (integer, accumulate & logged), `thought` (array<object>, append) |
+| **Data retrieval** | Tool | `db_url` (string), `entities` (object), `current_task_index` (integer), `tasks[current].description` (string), `available_charts` (array<string>) | `tasks[current].sql` (string, set), `tasks[current].result` (object, set to `{type: "data", content: chart_spec}`), `tasks[current].error` (string, set), `thought` (array<object>, append success/failure) |
+| **Text generation** | Agent | `tasks` (array<object>), `current_task_index` (integer) | `tasks[current].result` (object, set to `{type: "text", content}`), `tasks[current].token_in` / `tasks[current].token_out` (integer, set), `thought` (array<object>, append) |
+| **Response generation** | Agent | `tasks` (array<object>) | `response` (object, set to `QueryResponseData`), `thought` (array<object>, append)  |
+| **Result validation** | Tool | `tasks[].sql` (array<string>), `response` (string) | `error` (string, set/clear), `thought` (array<object>, append) |
+| **Monitoring** | Tool | `error` (string), `metrics` (object) | logs/alerts (side effect), `thought` (array<object>, append) |
 
 ### Step logs
 - `GET /step-logs/{message_id}` – retrieve workflow step logs
