@@ -5,7 +5,9 @@ from typing import Any, Dict, List
 
 from openai import OpenAI
 
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 from workflows.base import WorkflowState, logger, track_step
 
 

@@ -4,7 +4,9 @@ import asyncio
 import re
 from typing import Any, Dict, List
 
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 from services.llm_service import choose_charts
 from workflows.base import WorkflowState, logger, track_step
 

@@ -48,6 +48,8 @@ uv run uvicorn main:app --reload
 ```
 
 Configuration values are loaded with `pydantic-settings` so you can define them in a `.env` file.
+The server validates these on startup and exits with a clear message if any required
+settings are missing or invalid.
 
 Environment variables:
 

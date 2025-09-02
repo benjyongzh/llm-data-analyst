@@ -3,7 +3,6 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple, List
 
-from config import settings
 from db.database import get_pool
 from schemas.db_connection import DBConnection
 

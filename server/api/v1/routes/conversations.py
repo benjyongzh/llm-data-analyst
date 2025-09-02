@@ -16,7 +16,9 @@ from workflows import build_workflow
 from workflows.checkpointer import ConversationCheckpointer
 from workflows.ai_workflow import WorkflowState
 from auth import verify_token
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 
 router = APIRouter(prefix="/conversations")
 
