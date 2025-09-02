@@ -11,7 +11,7 @@ Prerequisites
 Environment Variables
 - Location: place a `.env` file in `server/` (same folder as `main.py`). It is automatically loaded by `pydantic-settings`.
 - Required variables and where they are used:
-  - `DATABASE_URL`: Postgres connection string used by `db/database.py` (app runtime, migrations, and scripts).
+  - `DATABASE_URL`: Postgres connection string used by `db/database.py` (app runtime, migrations, and scripts). The server logs an error and exits if the pool cannot be created.
   - `LLM_API_KEY`: API key used by OpenAI clients in `workflows/steps/*` and `services/llm_service.py`.
   - `JWT_SECRET`: Cookie-signing secret used in `auth.py` for JWT creation/verification.
 - Optional variables:

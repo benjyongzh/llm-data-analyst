@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     LLM_RESPONSE_MODEL: str = "gpt-4o-mini"
     LOG_LEVEL: str = "INFO"
     CONVERSATION_MEMORY_K: int = 5
+    DATABASE_URL: str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

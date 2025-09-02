@@ -58,7 +58,7 @@ Environment variables:
 - `LLM_RESPONSE_MODEL` – LLM model used for final summaries
 - `CONVERSATION_MEMORY_K` – number of recent messages to keep verbatim in
   conversation memory
-- `DATABASE_URL` – connection string for the application's metadata DB
+- `DATABASE_URL` – connection string for the application's metadata DB. The server logs an error and exits if the database connection cannot be established.
 - `LOG_LEVEL` – logging level for the backend (default `INFO`)
 
 ## API overview

@@ -1,7 +1,12 @@
 from typing import Optional
 
-import os
 import asyncpg
+import logging
+
+from config import settings
+
+
+logger = logging.getLogger(__name__)
 
 _POOL: Optional[asyncpg.Pool] = None
 
@@ -98,8 +103,11 @@ async def get_pool() -> asyncpg.Pool:
     """Create (or reuse) a connection pool and ensure tables exist."""
     global _POOL
     if _POOL is None:
-        dsn = os.environ["DATABASE_URL"]
-        _POOL = await asyncpg.create_pool(dsn)
-        async with _POOL.acquire() as conn:
-            await conn.execute(CREATE_TABLES_SQL)
+        try:
+            _POOL = await asyncpg.create_pool(settings.DATABASE_URL)
+            async with _POOL.acquire() as conn:
+                await conn.execute(CREATE_TABLES_SQL)
+        except asyncpg.PostgresError:
+            logger.exception("Failed to connect to database")
+            raise SystemExit("Database connection failed")
     return _POOL
