@@ -3,12 +3,14 @@ from typing import Optional
 import asyncpg
 import logging
 
-from config import settings
+from config import get_settings
 
 
 logger = logging.getLogger(__name__)
 
 _POOL: Optional[asyncpg.Pool] = None
+
+settings = get_settings()
 
 CREATE_TABLES_SQL = """
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

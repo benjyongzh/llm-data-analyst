@@ -1,5 +1,6 @@
 """FastAPI application serving the data analyst chatbot."""
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,13 +13,16 @@ from api.v1.routes import (
 )
 from config import get_settings
 
-settings = get_settings()
 
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Validate configuration and set logging on startup
+    s = get_settings()
+    logging.basicConfig(level=getattr(logging, s.LOG_LEVEL.upper(), logging.INFO))
+    yield
 
-app = FastAPI(title="LLM Data Analyst")
+
+app = FastAPI(title="LLM Data Analyst", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

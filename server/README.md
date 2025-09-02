@@ -52,6 +52,13 @@ Notes on Imports
 - The app entrypoint is `main:app`, so running from `server/` works with `uvicorn main:app`.
 - This avoids errors like “Attempted relative import with no known parent package”.
 
+Config Usage
+- Access settings via `from config import get_settings` then `settings = get_settings()`.
+- Do not import a `settings` object directly; the factory handles validation and caching.
+
+Startup Validation
+- On application startup, the server calls `get_settings()` via FastAPI's lifespan to validate configuration and set logging level.
+
 Development Tips
 - CORS is configured to allow `http://localhost:5173` by default. Adjust in `main.py` if your client runs elsewhere.
 - Project dependencies are declared in `pyproject.toml`; `uv` will resolve and run without a manual install step.
