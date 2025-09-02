@@ -4,7 +4,9 @@ from typing import Any, Dict
 from langgraph.checkpoint.memory import InMemorySaver
 from openai import OpenAI
 
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 from services import checkpoint_service
 
 

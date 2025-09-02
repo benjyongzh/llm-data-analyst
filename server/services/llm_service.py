@@ -10,7 +10,9 @@ from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from schemas import DBConnection
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 
 
 def _build_dsn(conn: DBConnection) -> str:

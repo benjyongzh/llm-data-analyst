@@ -1,3 +1,7 @@
+import logging
+from functools import lru_cache
+
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,4 +19,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
-settings = Settings()
+logger = logging.getLogger(__name__)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    try:
+        return Settings()
+    except ValidationError as exc:  # pragma: no cover - startup failure
+        logger.error("Failed to load configuration: %s", exc)
+        raise SystemExit(
+            "Invalid configuration. Please check your environment variables."
+        ) from exc

@@ -10,7 +10,9 @@ from api.v1.routes import (
     conversations_router,
     step_logs_router,
 )
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
