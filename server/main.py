@@ -10,6 +10,7 @@ from api.v1.routes import (
     db_connections_router,
     conversations_router,
     step_logs_router,
+    mappings_router,
 )
 from config import get_settings
 
@@ -36,3 +37,4 @@ app.include_router(users_router)
 app.include_router(db_connections_router)
 app.include_router(conversations_router)
 app.include_router(step_logs_router)
+app.include_router(mappings_router)
