@@ -39,6 +39,15 @@ CREATE TABLE IF NOT EXISTS db_connection (
   disabled_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS semantic_mapping (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  db_connection_id UUID NOT NULL REFERENCES db_connection(id),
+  user_id UUID NOT NULL REFERENCES app_user(id),
+  mappings JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS conversation (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES app_user(id),

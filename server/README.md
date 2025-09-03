@@ -2,7 +2,7 @@ LLM Data Analyst — Server
 
 Overview
 - FastAPI backend for the LLM Data Analyst app.
-- Serves REST endpoints for users, DB connections, conversations, and step logs under `/users`, `/db-connections`, `/conversations`, and `/step-logs`.
+- Serves REST endpoints for users, DB connections, conversations, step logs, and semantic mappings under `/users`, `/db-connections`, `/conversations`, `/step-logs`, and `/mappings`.
 
 Prerequisites
 - Python 3.11+

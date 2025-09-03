@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from openai import OpenAI
 
 from config import get_settings
+from semantic.mapper import resolve_term
 
 settings = get_settings()
 from workflows.base import WorkflowState, logger, track_step
@@ -73,10 +74,30 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         logger.exception("Failed to parse intent response: %s", exc)
         parsed = {"intent": "analysis", "entities": {}}
 
+    # Resolve natural-language terms to canonical schema names
+    parsed_entities = parsed.get("entities", {})
+    db_key = state.get("db_connection_id", "default")
+    user_id = state.get("user_id", "")
+    metrics = [resolve_term(m, db_key, user_id) for m in parsed_entities.get("metrics", [])]
+    if metrics:
+        parsed_entities["metrics"] = metrics
+    dimensions = [
+        resolve_term(d, db_key, user_id)
+        for d in parsed_entities.get("dimensions", [])
+    ]
+    if dimensions:
+        parsed_entities["dimensions"] = dimensions
+    if "table" in parsed_entities:
+        parsed_entities["table"] = resolve_term(parsed_entities["table"], db_key, user_id)
+    if "table_name" in parsed_entities:
+        parsed_entities["table"] = resolve_term(
+            parsed_entities.pop("table_name"), db_key, user_id
+        )
+
     entities = state.get("entities", {})
     entities.setdefault("timezone", "Asia/Singapore")
     entities.setdefault("currency", "single assumed currency")
-    entities.update(parsed.get("entities", {}))
+    entities.update(parsed_entities)
     if "timeframe" not in entities:
         entities["timeframe"] = "last 12 months"
 
