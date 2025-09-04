@@ -16,4 +16,5 @@ dependencies = [
     "PyJWT",
     "passlib[bcrypt]",
     "pydantic-settings",
+    "redis",
 ]

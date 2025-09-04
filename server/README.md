@@ -21,6 +21,7 @@ Environment Variables
   - `LLM_RESPONSE_MODEL` (default `gpt-4o-mini`): Model for summaries and some steps.
   - `LOG_LEVEL` (default `INFO`): Logging level configured in `main.py`.
   - `CONVERSATION_MEMORY_K` (default `5`): Rolling memory window in `workflows/checkpointer.py`.
+  - `REDIS_URL` (default `redis://localhost:6379/0`): Redis connection string used for caching semantic mappings.
 
 Example `.env`
 See `server/.env-example` for a complete, working template. Copy it to `.env` and adjust values:
@@ -34,6 +35,7 @@ LLM_RESPONSE_MODEL=gpt-4o-mini
 LOG_LEVEL=INFO
 CONVERSATION_MEMORY_K=5
 DATABASE_URL=postgresql://localhost/metadata
+REDIS_URL=redis://localhost:6379/0
 ```
 
 Setup
