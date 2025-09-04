@@ -9,6 +9,11 @@ from services import step_log_service
 logger = logging.getLogger(__name__)
 
 
+def append_error(state: "WorkflowState", step: str, message: str) -> None:
+    """Append a structured error entry for the given step."""
+    state.setdefault("error", []).append({"step": step, "message": message})
+
+
 def track_step(step_name: str):
     """Decorator to log step execution start and end."""
 
@@ -38,7 +43,7 @@ def track_step(step_name: str):
                 result = func(state, *args, **kwargs)
             except Exception as e:  # pragma: no cover - defensive
                 result = state
-                state["error"] = str(e)
+                append_error(state, step_name, str(e))
                 exc = e
             finally:
                 tokens_in = state.pop("tokens_in", 0)
@@ -47,7 +52,8 @@ def track_step(step_name: str):
                 thought = None
                 if len(thoughts) > start_len:
                     thought = thoughts[-1].get("thought")
-                status = "error" if exc or state.get("error") else "success"
+                errors = state.get("error", [])
+                status = "error" if exc or errors else "success"
                 if msg_id and log_id:
                     try:
                         asyncio.run(
@@ -98,7 +104,7 @@ class WorkflowState(TypedDict, total=False):
     clarification_limit: int
     clarification_escalated: bool
     db_url: str
-    error: str
+    error: List[Dict[str, str]]
     response: Dict[str, Any]
     summary: str
     messages: List[Dict[str, Any]]

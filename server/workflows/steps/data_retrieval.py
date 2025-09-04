@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from schemas.conversation import ChartSpecification, DataContent
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 from db.adapters import get_adapter
 
 
@@ -16,12 +16,14 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
     idx = state.get("current_task_index")
     tasks = state.get("tasks", [])
     task = tasks[idx] if isinstance(idx, int) and idx < len(tasks) else None
+    initial_errors = len(state.get("error", []))
 
     if not db_url:
         logger.warning("No database URL provided; skipping data retrieval")
-        state["error"] = "No database URL provided."
+        msg = "No database URL provided."
+        append_error(state, "data_retrieval", msg)
         if task is not None:
-            task["error"] = state["error"]
+            task["error"] = msg
         return state
 
     adapter = None
@@ -30,18 +32,20 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
         adapter = get_adapter(db_url)
     except Exception as exc:  # pragma: no cover - depends on adapter implementations
         logger.exception("Invalid database URL: %s", exc)
-        state["error"] = "Invalid database URL."
+        msg = "Invalid database URL."
+        append_error(state, "data_retrieval", msg)
         if task is not None:
-            task["error"] = state["error"]
+            task["error"] = msg
         return state
 
     try:
         table_name = entities.get("table")
         if not table_name:
             logger.error("No table specified in entities")
-            state["error"] = "No table specified."
+            msg = "No table specified."
+            append_error(state, "data_retrieval", msg)
             if task is not None:
-                task["error"] = state["error"]
+                task["error"] = msg
             return state
 
         # Entities are expected to contain canonical names from the mapping layer
@@ -54,7 +58,10 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
 
         from workflows.steps.visualization_spec import visualization_spec
 
+        pre_viz_errors = len(state.get("error", []))
         state = visualization_spec(state)
+        if task is not None and len(state.get("error", [])) > pre_viz_errors:
+            task["error"] = state["error"][-1]["message"]
         chart_spec = state.get("_chart_spec", {})
         if task is not None:
             task["sql"] = sql
@@ -63,13 +70,15 @@ def data_retrieval(state: WorkflowState) -> WorkflowState:
             ).model_dump()
     except Exception as exc:
         logger.exception("Data retrieval failed: %s", exc)
-        state["error"] = str(exc)
+        msg = str(exc)
+        append_error(state, "data_retrieval", msg)
         if task is not None:
-            task["error"] = state["error"]
+            task["error"] = msg
     finally:
         if adapter:
             adapter.close()
-    success = not state.get("error")
+    error_count = len(state.get("error", []))
+    success = error_count == initial_errors
     thought = "Retrieved data successfully" if success else "Data retrieval failed"
     state.setdefault("thought", []).append(
         {"step": "data_retrieval", "thought": thought}

@@ -9,7 +9,7 @@ from config import get_settings
 from semantic.mapper import resolve_term
 
 settings = get_settings()
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 
 
 @track_step("intent_understanding")
@@ -72,7 +72,8 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         parsed = json.loads(raw_text)
     except Exception as exc:  # pragma: no cover - LLM failure fallback
         logger.exception("Failed to parse intent response: %s", exc)
-        parsed = {"intent": "analysis", "entities": {}}
+        append_error(state, "intent_understanding", str(exc))
+        return state
 
     # Resolve natural-language terms to canonical schema names
     parsed_entities = parsed.get("entities", {})
