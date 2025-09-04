@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional, Tuple, List
 
 from db.database import get_pool
 from schemas.db_connection import DBConnection
+from .semantic_mapping_service import ensure_mapping
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,25 @@ async def create_conversation(
             title,
             model,
         )
-        return str(row["id"])
+        convo_id = str(row["id"])
+
+        db_row = await conn.fetchrow(
+            """
+            SELECT db_name, db_user, password, host, port
+            FROM db_connection
+            WHERE id=$1 AND user_id=$2
+            """,
+            db_connection_id,
+            user_id,
+        )
+
+    if db_row:
+        dsn = (
+            f"postgresql://{db_row['db_user']}:{db_row['password']}"
+            f"@{db_row['host']}:{db_row['port']}/{db_row['db_name']}"
+        )
+        await ensure_mapping(user_id, db_connection_id, dsn)
+    return convo_id
 
 
 async def get_conversation_db_connection(
@@ -38,7 +57,7 @@ async def get_conversation_db_connection(
         row = await conn.fetchrow(
             """
             SELECT dc.db_name, dc.db_user, dc.password, dc.host, dc.port,
-                   dc.enabled_at, dc.disabled_at
+                   dc.enabled_at, dc.disabled_at, c.db_connection_id
             FROM conversation c
             JOIN db_connection dc ON c.db_connection_id = dc.id
             WHERE c.id = $1 AND c.user_id = $2
@@ -52,6 +71,11 @@ async def get_conversation_db_connection(
         enabled_at = row["enabled_at"]
         if disabled_at and (enabled_at is None or disabled_at >= enabled_at):
             raise ValueError("DB connection disabled")
+        dsn = (
+            f"postgresql://{row['db_user']}:{row['password']}"
+            f"@{row['host']}:{row['port']}/{row['db_name']}"
+        )
+        await ensure_mapping(user_id, str(row["db_connection_id"]), dsn)
         return DBConnection(
             db_name=row["db_name"],
             user=row["db_user"],

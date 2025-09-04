@@ -78,21 +78,23 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     parsed_entities = parsed.get("entities", {})
     db_key = state.get("db_connection_id", "default")
     user_id = state.get("user_id", "")
-    metrics = [resolve_term(m, db_key, user_id) for m in parsed_entities.get("metrics", [])]
+    def _resolve(t: str) -> str:
+        try:
+            return resolve_term(t, db_key, user_id)
+        except KeyError:
+            logger.warning("Missing semantic mapping for term '%s'", t)
+            return t
+
+    metrics = [_resolve(m) for m in parsed_entities.get("metrics", [])]
     if metrics:
         parsed_entities["metrics"] = metrics
-    dimensions = [
-        resolve_term(d, db_key, user_id)
-        for d in parsed_entities.get("dimensions", [])
-    ]
+    dimensions = [_resolve(d) for d in parsed_entities.get("dimensions", [])]
     if dimensions:
         parsed_entities["dimensions"] = dimensions
     if "table" in parsed_entities:
-        parsed_entities["table"] = resolve_term(parsed_entities["table"], db_key, user_id)
+        parsed_entities["table"] = _resolve(parsed_entities["table"])
     if "table_name" in parsed_entities:
-        parsed_entities["table"] = resolve_term(
-            parsed_entities.pop("table_name"), db_key, user_id
-        )
+        parsed_entities["table"] = _resolve(parsed_entities.pop("table_name"))
 
     entities = state.get("entities", {})
     entities.setdefault("timezone", "Asia/Singapore")
