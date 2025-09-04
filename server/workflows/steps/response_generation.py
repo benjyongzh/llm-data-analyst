@@ -12,7 +12,8 @@ def response_generation(state: WorkflowState) -> WorkflowState:
     messages = []
 
     if state.get("error"):
-        messages.append(TextContent(content=state["error"]).model_dump())
+        msgs = "; ".join(err["message"] for err in state.get("error", []))
+        messages.append(TextContent(content=msgs).model_dump())
     else:
         for task in tasks:
             result = task.get("result")

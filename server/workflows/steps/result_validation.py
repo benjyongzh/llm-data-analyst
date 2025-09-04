@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 
 
 @track_step("result_validation")
@@ -29,14 +29,14 @@ def result_validation(state: WorkflowState) -> WorkflowState:
     )
     for sql in sql_statements:
         if not allowed.match(sql) or forbidden.search(sql):
-            state["error"] = "SQL validation failed."
+            append_error(state, "result_validation", "SQL validation failed.")
             return state
 
     if summary:
         # Basic character allowlist
         summary_ok = re.compile(r"^[\w\s.,!?:;'\-]*$", re.UNICODE)
         if not summary_ok.match(summary):
-            state["error"] = "Summary validation failed."
+            append_error(state, "result_validation", "Summary validation failed.")
             return state
 
         # Guardrail checks for PII
@@ -45,13 +45,13 @@ def result_validation(state: WorkflowState) -> WorkflowState:
             re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"),
         ]
         if any(p.search(summary) for p in pii_patterns):
-            state["error"] = "PII detected in summary."
+            append_error(state, "result_validation", "PII detected in summary.")
             return state
 
         # Simple profanity filter
         profanity = {"damn", "shit"}
         if any(word in summary.lower() for word in profanity):
-            state["error"] = "Profanity detected in summary."
+            append_error(state, "result_validation", "Profanity detected in summary.")
             return state
 
     state.setdefault("thought", []).append(

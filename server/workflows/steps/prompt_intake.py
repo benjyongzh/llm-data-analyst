@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 
 
 @track_step("prompt_intake")
@@ -11,7 +11,14 @@ def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
     logger.info("Step 1: Prompt intake for conversation %s", state.get("conversation_id"))
     conv_id = state.get("conversation_id")
     if conv_id and checkpointer:
-        history = checkpointer.load(conv_id)
+        try:
+            history = checkpointer.load(conv_id)
+        except Exception as exc:
+            logger.exception(
+                "Failed to load conversation %s: %s", conv_id, exc
+            )
+            append_error(state, "prompt_intake", "Failed to load conversation history")
+            return state
         summary = history.get("summary", "")
         messages = history.get("messages", [])
         history_parts: List[str] = []

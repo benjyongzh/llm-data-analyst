@@ -8,7 +8,7 @@ from openai import OpenAI
 from config import get_settings
 
 settings = get_settings()
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 
 
 @track_step("task_planning")
@@ -46,19 +46,21 @@ def task_planning(state: WorkflowState) -> WorkflowState:
         "For each task, state whether database data is required.\n"
         f"Intent: {intent}\nPrompt: {prompt}"
     )
-    resp = client.responses.create(
-        model=settings.LLM_RESPONSE_MODEL,
-        input=inp,
-        response_format=response_format,
-    )
-    if getattr(resp, "usage", None):
-        state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
-        state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
     try:
+        resp = client.responses.create(
+            model=settings.LLM_RESPONSE_MODEL,
+            input=inp,
+            response_format=response_format,
+        )
+        if getattr(resp, "usage", None):
+            state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
+            state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
         data = json.loads(resp.output[0].content[0].text)
         planned = data.get("tasks", [])
-    except Exception:
-        planned = []
+    except Exception as exc:
+        logger.exception("Task planning failed: %s", exc)
+        append_error(state, "task_planning", str(exc))
+        return state
     tasks: List[Dict[str, Any]] = []
     for t in planned:
         tasks.append(

@@ -8,7 +8,7 @@ from config import get_settings
 
 settings = get_settings()
 from services.llm_service import choose_charts
-from workflows.base import WorkflowState, logger, track_step
+from workflows.base import WorkflowState, logger, track_step, append_error
 
 
 @track_step("visualization_spec")
@@ -31,7 +31,35 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
             measures = [k for k, v in sample.items() if isinstance(v, (int, float))]
 
     available = state.get("available_charts", [])
-    chart_types: List[str] = [available[0]] if available else ["bar"]
+
+    x_label = dims[0] if dims else ""
+    x_values = [row.get(x_label) for row in data] if x_label else []
+    data_type = "category"
+    if x_values:
+        first = x_values[0]
+        if isinstance(first, (int, float)):
+            data_type = "numeric"
+        elif isinstance(first, str) and re.match(r"\d{4}-\d{2}-\d{2}", first):
+            data_type = "date"
+
+    def _fallback_charts() -> List[str]:
+        if not available:
+            return ["bar"]
+        if len(measures) == 1 and len(dims) == 1:
+            if data_type in ("date", "numeric") and "line" in available:
+                return ["line"]
+            if data_type == "category":
+                if "pie" in available and len(set(x_values)) <= 5:
+                    return ["pie"]
+                if "bar" in available:
+                    return ["bar"]
+        if len(dims) >= 1 and len(measures) >= 1 and "bar" in available:
+            return ["bar"]
+        if "line" in available:
+            return ["line"]
+        return [available[0]]
+
+    chart_types: List[str] = _fallback_charts()
 
     idx = state.get("current_task_index")
     tasks = state.get("tasks", [])
@@ -55,38 +83,15 @@ def visualization_spec(state: WorkflowState) -> WorkflowState:
                 chart_types = list(charts)
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Chart selection via LLM failed: %s", exc)
-            # Fallback heuristic if LLM call fails
-            time_like = [
-                d
-                for d in dims
-                if any(t in d.lower() for t in ["date", "time", "year", "month", "day"])
-            ]
-            preferred: List[str]
-            if time_like:
-                preferred = ["line", "bar"]
-            elif len(measures) > 1:
-                preferred = ["bar", "line"]
-            else:
-                preferred = ["bar", "line"]
-            chart_types = [c for c in preferred if c in available] or [available[0]]
+            append_error(state, "visualization_spec", str(exc))
 
     # Build new chart specification schema
-    x_label = dims[0] if dims else ""
     title_parts: List[str] = []
     if measures:
         title_parts.append(", ".join(measures))
     if dims:
         title_parts.append("by " + ", ".join(dims))
     title = " ".join(title_parts) if title_parts else "Chart"
-
-    x_values = [row.get(x_label) for row in data] if x_label else []
-    data_type = "category"
-    if x_values:
-        first = x_values[0]
-        if isinstance(first, (int, float)):
-            data_type = "numeric"
-        elif isinstance(first, str) and re.match(r"\d{4}-\d{2}-\d{2}", first):
-            data_type = "date"
 
     y_axes: List[Dict[str, Any]] = []
     for m in measures:

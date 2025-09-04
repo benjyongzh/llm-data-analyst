@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Depends
 from schemas import (
@@ -15,12 +16,14 @@ from services import conversation_service
 from workflows import build_workflow
 from workflows.checkpointer import ConversationCheckpointer
 from workflows.ai_workflow import WorkflowState
+from workflows.base import append_error
 from auth import verify_token
 from config import get_settings
 
 settings = get_settings()
 
 router = APIRouter(prefix="/conversations")
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=ConversationCreateResponse)
@@ -76,7 +79,13 @@ async def conversation_query(
     checkpointer = ConversationCheckpointer(k=settings.CONVERSATION_MEMORY_K)
     workflow = build_workflow(checkpointer=checkpointer)
     config = {"configurable": {"thread_id": conversation_id}}
-    state = await asyncio.to_thread(workflow.invoke, state, config=config)
+    workflow_error = False
+    try:
+        state = await asyncio.to_thread(workflow.invoke, state, config=config)
+    except Exception as exc:
+        logger.exception("Workflow invocation failed: %s", exc)
+        append_error(state, "workflow", str(exc))
+        workflow_error = True
 
     response = state.get("response", {"message": []})
     questions: list[str] = []
@@ -87,10 +96,18 @@ async def conversation_query(
         assistant_contents = [TextContent(content=q).model_dump() for q in questions]
         response_texts = questions
     else:
-        assistant_contents = response.get("message", [])
-        response_texts = [
-            c.get("content") for c in assistant_contents if c.get("type") == "text"
-        ]
+        if state.get("error") and not response.get("message"):
+            messages = [err["message"] for err in state.get("error", [])]
+            joined = "; ".join(messages)
+            assistant_contents = [
+                TextContent(content=joined).model_dump()
+            ]
+            response_texts = messages
+        else:
+            assistant_contents = response.get("message", [])
+            response_texts = [
+                c.get("content") for c in assistant_contents if c.get("type") == "text"
+            ]
 
     await conversation_service.add_message(
         conversation_id,
@@ -99,9 +116,10 @@ async def conversation_query(
     )
 
     result = QueryResponse(
-        status="ok",
-        code=200,
+        status="error" if workflow_error else "ok",
+        code=500 if workflow_error else 200,
         data=QueryResponseData(message=assistant_contents),
+        error=state.get("error"),
     )
 
     # Update conversation memory

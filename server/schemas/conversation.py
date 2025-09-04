@@ -69,7 +69,7 @@ class QueryResponse(BaseModel):
     status: str
     code: int
     data: QueryResponseData
-    error: Optional[str] = None
+    error: Optional[List[Dict[str, str]]] = None
 
 
 class ConversationCreateRequest(BaseModel):
