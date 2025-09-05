@@ -34,6 +34,7 @@ React + Vite front end and a FastAPI backend.
 - Each workflow step is logged with LLM thoughts, generated SQL, and token counts and can be inspected via `GET /api/v1/step-logs/{message_id}`
 - Workflow runs, individual steps, and agent executions are persisted in dedicated `workflow_run`, `workflow_step`, and `agent_run` tables for auditing with statuses (`running`, `succeeded`, `failed`, `cancelled`)
 - Detailed debug logs capture workflow step entry/exit and raw LLM responses; a helper wraps direct OpenAI calls to record raw output and automatically tags logs with the current workflow step
+- Each LLM invocation records its prompt, inputs, outputs, and token usage in the `agent_run` table for end-to-end traceability
 
 ## Structure
 
