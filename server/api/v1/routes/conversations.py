@@ -12,7 +12,7 @@ from schemas import (
     ConversationListItem,
     TextContent,
 )
-from services import conversation_service
+from services import conversation_service, workflow_run_service
 from workflows import build_workflow
 from workflows.checkpointer import ConversationCheckpointer
 from workflows.ai_workflow import WorkflowState
@@ -66,8 +66,12 @@ async def conversation_query(
         f"postgresql://{db_conn.user}:{db_conn.password}"
         f"@{db_conn.host}:{db_conn.port}/{db_conn.db_name}"
     )
+
+    workflow_run_id = await workflow_run_service.create_run(conversation_id)
+
     state: WorkflowState = {
         "conversation_id": conversation_id,
+        "workflow_run_id": workflow_run_id,
         "message_id": user_message_id,
         "user_id": token_data["user_id"],
         "prompt": request.prompt,
@@ -86,6 +90,14 @@ async def conversation_query(
         logger.exception("Workflow invocation failed: %s", exc)
         append_error(state, "workflow", str(exc))
         workflow_error = True
+    finally:
+        run_status = "failed" if workflow_error else "completed"
+        run_error = None
+        if workflow_error and state.get("error"):
+            run_error = "; ".join(err["message"] for err in state["error"])
+        await workflow_run_service.complete_run(
+            workflow_run_id, status=run_status, error=run_error
+        )
 
     response = state.get("response", {"message": []})
     questions: list[str] = []
