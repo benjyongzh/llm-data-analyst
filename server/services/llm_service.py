@@ -11,6 +11,7 @@ from langchain_openai import ChatOpenAI
 
 from schemas import DBConnection
 from config import get_settings
+from services.logging_service import log_llm_output, create_logged_response
 
 settings = get_settings()
 
@@ -42,6 +43,7 @@ async def extract_data(
 
         query = (f"{prompt}\n" "Return the results as a JSON array of objects.")
         result = agent.invoke({"input": query})
+        log_llm_output("extract_data", result)
         data_text = result["output"] if isinstance(result, dict) else result
         payload = json.loads(data_text)
         if not isinstance(payload, list):
@@ -84,13 +86,14 @@ async def choose_charts(
             + f"Data: {json.dumps(data)}"
         )
 
-        resp = client.responses.create(
+        resp, raw = create_logged_response(
+            client,
+            step="choose_charts",
             model=model_name,
             input=message,
             response_format=response_format,
         )
-
-        selections = json.loads(resp.output[0].content[0].text)
+        selections = json.loads(raw)
         return list(selections)
 
     return await asyncio.to_thread(_run)

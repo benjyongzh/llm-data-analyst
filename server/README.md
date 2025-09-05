@@ -3,6 +3,7 @@ LLM Data Analyst — Server
 Overview
 - FastAPI backend for the LLM Data Analyst app.
 - Serves REST endpoints for users, DB connections, conversations, step logs, and semantic mappings under `/users`, `/db-connections`, `/conversations`, `/step-logs`, and `/mappings`.
+- Debug logs mark entry and exit of each workflow step and capture raw LLM output; OpenAI calls made through a helper automatically include the current step name.
 
 Prerequisites
 - Python 3.11+
@@ -19,7 +20,7 @@ Environment Variables
   - `JWT_EXP_SECONDS` (default `86400`): Token lifetime in seconds (`auth.py`).
   - `ENVIRONMENT` (default `development`): Controls cookie flags (`auth.py`).
   - `LLM_RESPONSE_MODEL` (default `gpt-4o-mini`): Model for summaries and some steps.
-  - `LOG_LEVEL` (default `INFO`): Logging level configured in `main.py`.
+  - `LOG_LEVEL` (default `DEBUG`): Logging level configured in `main.py`.
   - `CONVERSATION_MEMORY_K` (default `5`): Rolling memory window in `workflows/checkpointer.py`.
   - `REDIS_URL` (default `redis://localhost:6379/0`): Redis connection string used for caching semantic mappings.
 
@@ -32,7 +33,7 @@ JWT_SECRET=change-me
 JWT_EXP_SECONDS=86400
 ENVIRONMENT=development
 LLM_RESPONSE_MODEL=gpt-4o-mini
-LOG_LEVEL=INFO
+LOG_LEVEL=DEBUG
 CONVERSATION_MEMORY_K=5
 DATABASE_URL=postgresql://localhost/metadata
 REDIS_URL=redis://localhost:6379/0
@@ -43,7 +44,7 @@ Setup
   - `LLM_API_KEY`: your model provider key
   - `JWT_SECRET`: secret for signing JWT cookies
   - `DATABASE_URL`: Postgres DSN for app data store
-  - Optional: `LOG_LEVEL` (default `INFO`), `ENVIRONMENT`, `CONVERSATION_MEMORY_K`, `LLM_RESPONSE_MODEL`
+  - Optional: `LOG_LEVEL` (default `DEBUG`), `ENVIRONMENT`, `CONVERSATION_MEMORY_K`, `LLM_RESPONSE_MODEL`
 
 Install and Run (recommended)
 - In `server/`:

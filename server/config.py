@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     JWT_EXP_SECONDS: int = 86400
     ENVIRONMENT: str = "development"
     LLM_RESPONSE_MODEL: str = "gpt-4o-mini"
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: str = "DEBUG"
     CONVERSATION_MEMORY_K: int = 5
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
