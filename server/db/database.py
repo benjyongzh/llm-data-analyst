@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS workflow_run (
 CREATE TABLE IF NOT EXISTS workflow_step (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_run_id UUID NOT NULL REFERENCES workflow_run(id) ON DELETE CASCADE,
+  step_name VARCHAR(255) NOT NULL,
+  status run_status NOT NULL,
   state_in JSONB,
   state_out JSONB,
   started_at TIMESTAMPTZ DEFAULT now(),

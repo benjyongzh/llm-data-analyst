@@ -6,7 +6,7 @@ from typing import Any, Dict, List, TypedDict
 
 from copy import deepcopy
 
-from services import step_log_service
+from services import step_log_service, workflow_step_service
 from services.logging_service import set_current_step, reset_current_step
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,9 @@ def track_step(step_name: str):
         def wrapper(state: WorkflowState, *args, **kwargs):
             token = set_current_step(step_name)
             msg_id = state.get("message_id")
+            workflow_run_id = state.get("workflow_run_id")
             log_id = None
+            workflow_step_id = None
             entry_state = deepcopy(state)
             logger.debug("[ENTER %s] state=%s", step_name, entry_state)
             # Clear token leftovers from previous steps
@@ -42,6 +44,21 @@ def track_step(step_name: str):
                     loop = asyncio.get_event_loop()
                     log_id = loop.run_until_complete(
                         step_log_service.log_step_start(msg_id, step_name)
+                    )
+
+            if workflow_run_id:
+                try:
+                    workflow_step_id = asyncio.run(
+                        workflow_step_service.start_workflow_step(
+                            workflow_run_id, step_name, entry_state
+                        )
+                    )
+                except RuntimeError:
+                    loop = asyncio.get_event_loop()
+                    workflow_step_id = loop.run_until_complete(
+                        workflow_step_service.start_workflow_step(
+                            workflow_run_id, step_name, entry_state
+                        )
                     )
 
             exc: Exception | None = None
@@ -64,6 +81,21 @@ def track_step(step_name: str):
                 logger.debug(
                     "[EXIT %s] state=%s", step_name, exit_state
                 )
+                wf_status = "failed" if status == "error" else "succeeded"
+                if workflow_run_id and workflow_step_id:
+                    try:
+                        asyncio.run(
+                            workflow_step_service.finish_workflow_step(
+                                workflow_step_id, exit_state, wf_status
+                            )
+                        )
+                    except RuntimeError:
+                        loop = asyncio.get_event_loop()
+                        loop.run_until_complete(
+                            workflow_step_service.finish_workflow_step(
+                                workflow_step_id, exit_state, wf_status
+                            )
+                        )
                 reset_current_step(token)
                 if msg_id and log_id:
                     try:
@@ -103,6 +135,7 @@ class WorkflowState(TypedDict, total=False):
 
     conversation_id: str
     message_id: str
+    workflow_run_id: str
     user_id: str
     prompt: str
     history: str
