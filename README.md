@@ -159,6 +159,14 @@ Chart specifications returned in `data` parts follow this schema:
 
 Multiple chart types may be listed so the client can render the option it prefers.
 
+### Debug workflow steps
+- `POST /api/v1/debug/<step_name>` – run a single workflow step in isolation for
+  troubleshooting. The request body is treated as the workflow state and the
+  response is the step's output. Available steps include `prompt_intake`,
+  `intent_understanding`, `clarification`, `task_planning`, `task_execution`,
+  `text_generation`, `data_retrieval`, `visualization_spec`, `response_generation`,
+  `result_validation`, and `monitoring`.
+
 Clarifications are included as additional text parts. The API does not split
 prompts containing multiple questions, so the front end should either prompt the
 user for a single question or issue multiple calls.
