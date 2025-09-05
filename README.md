@@ -260,26 +260,33 @@ timeframes from the user's prompt.
 
 ```mermaid
 flowchart TD
-    A[Prompt intake] --> B[Intent understanding]
+    A([Prompt intake]) --> B[Intent understanding]
     B --> C[Clarification]
     C --> D{Needs clarification?}
-    D -->|Yes| E[Return questions]
+    D -->|Yes| E([Return questions])
     E --> Q((End))
     D -->|No| F[Task planning]
-    F --> G[Task execution]
+    F --> G([Task execution])
     G --> H{More tasks?}
     H -->|No| I[Response generation]
     H -->|Yes| J{Requires data?}
-    J -->|Yes| K[Data retrieval]
+    J -->|Yes| K([Data retrieval])
     J -->|No| L[Text generation]
     K --> G
     L --> G
-    I --> M[Result validation]
+    I --> M([Result validation])
     M --> N{Validation error?}
     N -->|Yes| Q
-    N -->|No| O[Monitoring]
+    N -->|No| O([Monitoring])
     O --> Q
+
+    subgraph Legend
+        direction LR
+        LA[AI agent] --- LB([Tool])
+    end
 ```
+
+Sharp rectangles represent AI agents, while curved rectangles denote tools.
 
 During **Task execution**, the workflow iterates through each planned task,
 branching to dedicated **Data retrieval** or **Text generation** nodes before
