@@ -15,6 +15,13 @@ settings = get_settings()
 CREATE_TABLES_SQL = """
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+DO $$
+BEGIN
+  CREATE TYPE run_status AS ENUM ('running','succeeded','failed','cancelled');
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS app_user (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -87,9 +94,44 @@ CREATE INDEX IF NOT EXISTS idx_message_content_msg ON message_content (message_i
 --   updated_at TIMESTAMPTZ DEFAULT now()
 -- );
 
+CREATE TABLE IF NOT EXISTS workflow_run (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  status run_status NOT NULL,
+  error VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS workflow_step (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_run_id UUID NOT NULL REFERENCES workflow_run(id) ON DELETE CASCADE,
+  state_in JSONB,
+  state_out JSONB,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS agent_run (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_run_id UUID NOT NULL REFERENCES workflow_run(id) ON DELETE CASCADE,
+  model_name VARCHAR(100),
+  workflow_step_id UUID REFERENCES workflow_step(id) ON DELETE CASCADE,
+  prompt TEXT,
+  input JSONB,
+  output JSONB,
+  thought TEXT,
+  log JSONB,
+  status run_status NOT NULL,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  token_usage INT DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS conversation_checkpoint (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id UUID NOT NULL UNIQUE REFERENCES conversation(id) ON DELETE CASCADE,
+  conversation_id UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+  workflow_run_id UUID NOT NULL REFERENCES workflow_run(id) ON DELETE CASCADE,
   checkpoint JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
