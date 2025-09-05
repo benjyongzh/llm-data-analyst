@@ -35,6 +35,7 @@ React + Vite front end and a FastAPI backend.
 - Workflow runs, individual steps, and agent executions are persisted in dedicated `workflow_run`, `workflow_step`, and `agent_run` tables. Each step record captures the step name, status, and input/output workflow state for auditing
 - Each conversation query automatically records a `workflow_run` row when it starts and marks it `completed` on success or `failed` if the workflow errors
 - Detailed debug logs capture workflow step entry/exit and raw LLM responses; a helper wraps direct OpenAI calls to record raw output and automatically tags logs with the current workflow step
+- Each LLM invocation records its prompt, inputs, outputs, and token usage in the `agent_run` table for end-to-end traceability
 
 ## Structure
 
