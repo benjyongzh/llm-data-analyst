@@ -8,6 +8,7 @@ from config import get_settings
 
 settings = get_settings()
 from services import checkpoint_service
+from services.logging_service import create_logged_response
 
 
 class ConversationCheckpointer(InMemorySaver):
@@ -41,14 +42,16 @@ class ConversationCheckpointer(InMemorySaver):
         parts.append("New messages:\n" + "\n".join(formatted))
         prompt = "\n\n".join(parts)
         try:
-            resp = self.client.responses.create(
+            resp, text = create_logged_response(
+                self.client,
+                step="conversation_summary",
                 model=settings.LLM_RESPONSE_MODEL,
                 input=(
                     "Update the conversation summary to reflect the entire conversation so far.\n"
                     + prompt
                 ),
             )
-            return resp.output[0].content[0].text.strip()
+            return text.strip()
         except Exception:
             return summary
 

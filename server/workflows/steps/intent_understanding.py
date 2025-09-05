@@ -10,6 +10,7 @@ from semantic.mapper import resolve_term
 
 settings = get_settings()
 from workflows.base import WorkflowState, logger, track_step, append_error
+from services.logging_service import create_logged_response
 
 
 @track_step("intent_understanding")
@@ -60,7 +61,8 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
     )
     raw_text = ""
     try:
-        resp = client.responses.create(
+        resp, raw_text = create_logged_response(
+            client,
             model=settings.LLM_RESPONSE_MODEL,
             input=message,
             response_format=response_format,
@@ -68,7 +70,6 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         if getattr(resp, "usage", None):
             state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
             state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
-        raw_text = resp.output[0].content[0].text
         parsed = json.loads(raw_text)
     except Exception as exc:  # pragma: no cover - LLM failure fallback
         logger.exception("Failed to parse intent response: %s", exc)

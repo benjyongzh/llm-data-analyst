@@ -4,7 +4,10 @@ import asyncio
 import logging
 from typing import Any, Dict, List, TypedDict
 
+from copy import deepcopy
+
 from services import step_log_service
+from services.logging_service import set_current_step, reset_current_step
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +22,11 @@ def track_step(step_name: str):
 
     def decorator(func):
         def wrapper(state: WorkflowState, *args, **kwargs):
+            token = set_current_step(step_name)
             msg_id = state.get("message_id")
             log_id = None
+            entry_state = deepcopy(state)
+            logger.debug("[ENTER %s] state=%s", step_name, entry_state)
             # Clear token leftovers from previous steps
             for key in ("tokens_in", "tokens_out"):
                 state.pop(key, None)
@@ -54,6 +60,11 @@ def track_step(step_name: str):
                     thought = thoughts[-1].get("thought")
                 errors = state.get("error", [])
                 status = "error" if exc or errors else "success"
+                exit_state = deepcopy(state)
+                logger.debug(
+                    "[EXIT %s] state=%s", step_name, exit_state
+                )
+                reset_current_step(token)
                 if msg_id and log_id:
                     try:
                         asyncio.run(
