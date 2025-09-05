@@ -297,6 +297,7 @@ data types:
 | --- | --- | --- |
 | `conversation_id` | string | Current conversation identifier |
 | `message_id` | string | Message identifier for the current turn |
+| `workflow_run_id` | string | Workflow run identifier |
 | `user_id` | string | ID of the authenticated user |
 | `prompt` | string | Raw user input |
 | `history` | string | Concatenated summary and recent messages |
@@ -309,8 +310,8 @@ data types:
 | `clarification_limit` | integer | Maximum clarification attempts |
 | `clarification_escalated` | boolean | Whether the limit was exceeded |
 | `db_url` | string | Database connection string |
-| `error` | string | Error message if a step fails |
-| `response` | string | Final natural-language reply |
+| `error` | array<object> | Collected `{step, message}` errors |
+| `response` | object | Final response envelope (`QueryResponseData`) |
 | `summary` | string | Running conversation summary |
 | `messages` | array<object> | Recent conversation messages |
 | `timeframe` | string | Default or extracted timeframe |
