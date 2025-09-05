@@ -57,23 +57,35 @@ class ConversationCheckpointer(InMemorySaver):
 
     def _load_from_db(self, conversation_id: str) -> Dict[str, Any] | None:
         try:
-            return asyncio.run(checkpoint_service.get_checkpoint(conversation_id))
+            return asyncio.run(
+                checkpoint_service.get_latest_checkpoint(conversation_id)
+            )
         except RuntimeError:
             loop = asyncio.get_event_loop()
             return loop.run_until_complete(
-                checkpoint_service.get_checkpoint(conversation_id)
+                checkpoint_service.get_latest_checkpoint(conversation_id)
             )
 
-    def _save_to_db(self, conversation_id: str, data: Dict[str, Any]) -> None:
+    def _save_to_db(
+        self, conversation_id: str, workflow_run_id: str, data: Dict[str, Any]
+    ) -> None:
         try:
-            asyncio.run(checkpoint_service.upsert_checkpoint(conversation_id, data))
+            asyncio.run(
+                checkpoint_service.create_checkpoint(
+                    conversation_id, workflow_run_id, data
+                )
+            )
         except RuntimeError:
             loop = asyncio.get_event_loop()
             loop.run_until_complete(
-                checkpoint_service.upsert_checkpoint(conversation_id, data)
+                checkpoint_service.create_checkpoint(
+                    conversation_id, workflow_run_id, data
+                )
             )
 
-    def load(self, conversation_id: str) -> Dict[str, Any]:
+    def load(
+        self, conversation_id: str, workflow_run_id: str | None = None
+    ) -> Dict[str, Any]:
         """Load memory for a conversation."""
         config = {
             "configurable": {"thread_id": conversation_id, "checkpoint_ns": "memory"}
@@ -95,7 +107,9 @@ class ConversationCheckpointer(InMemorySaver):
             return history
         return checkpoint.get("history", {"summary": "", "messages": []})
 
-    def save(self, conversation_id: str, history: Dict[str, Any]) -> None:
+    def save(
+        self, conversation_id: str, workflow_run_id: str, history: Dict[str, Any]
+    ) -> None:
         messages = history.get("messages", [])
         summary = history.get("summary", "")
         if len(messages) > self.k:
@@ -113,4 +127,4 @@ class ConversationCheckpointer(InMemorySaver):
             {},
             {"history": self.get_next_version(None, None)},
         )
-        self._save_to_db(conversation_id, {"history": new_history})
+        self._save_to_db(conversation_id, workflow_run_id, {"history": new_history})

@@ -4,12 +4,18 @@ from typing import Any, Dict, Optional
 from db.database import get_pool
 
 
-async def get_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch checkpoint data for a conversation."""
+async def get_latest_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch the most recent checkpoint for a conversation."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT checkpoint FROM conversation_checkpoint WHERE conversation_id=$1",
+            """
+            SELECT checkpoint
+            FROM conversation_checkpoint
+            WHERE conversation_id=$1
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
             conversation_id,
         )
         if row:
@@ -17,17 +23,20 @@ async def get_checkpoint(conversation_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def upsert_checkpoint(conversation_id: str, checkpoint: Dict[str, Any]) -> None:
-    """Insert or update checkpoint data for a conversation."""
+async def create_checkpoint(
+    conversation_id: str, workflow_run_id: str, checkpoint: Dict[str, Any]
+) -> None:
+    """Insert checkpoint data for a conversation and workflow run."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO conversation_checkpoint (conversation_id, checkpoint, updated_at)
-            VALUES ($1, $2, now())
-            ON CONFLICT (conversation_id)
-            DO UPDATE SET checkpoint=$2, updated_at=now()
+            INSERT INTO conversation_checkpoint (
+                conversation_id, workflow_run_id, checkpoint
+            )
+            VALUES ($1, $2, $3)
             """,
             conversation_id,
+            workflow_run_id,
             json.dumps(checkpoint),
         )

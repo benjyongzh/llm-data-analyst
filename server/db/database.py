@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS conversation_checkpoint (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_conv_checkpoint_convo_created
+  ON conversation_checkpoint (conversation_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS workflow_step_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

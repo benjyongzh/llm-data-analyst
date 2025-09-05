@@ -15,7 +15,9 @@ React + Vite front end and a FastAPI backend.
   context within token limits, and each summary records its last refresh time -->
 - Chat UI built with reusable layout and custom hooks for conversations and messages
 - Conversation history is stored via a LangGraph checkpointer backed by
-  PostgreSQL, which keeps the latest K messages and summarizes older ones
+  PostgreSQL, which keeps the latest K messages and summarizes older ones.
+  Each workflow run records its own checkpoint row (indexed by conversation
+  ID and creation time) so memory can be restored from the most recent run.
 - Inline error messages with cleared loading indicators for failed API calls
 - Each workflow step captures foreseeable failures and appends them to
   `state["error"]` as `{step, message}` entries so the client receives
@@ -301,7 +303,9 @@ database and made available to downstream nodes via the workflow state. -->
 
 Conversation memory is maintained by a LangGraph checkpointer. It keeps the most
 recent **K** interactions verbatim and summarizes older messages, producing a
-compact history that is fed back into the workflow on subsequent turns.
+compact history that is fed back into the workflow on subsequent turns. A new
+checkpoint row is inserted for each workflow run via `create_checkpoint`, and the
+latest row is loaded when a conversation resumes.
 
 #### Workflow state
 
