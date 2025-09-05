@@ -12,7 +12,7 @@ def prompt_intake(state: WorkflowState, checkpointer=None) -> WorkflowState:
     conv_id = state.get("conversation_id")
     if conv_id and checkpointer:
         try:
-            history = checkpointer.load(conv_id)
+            history = checkpointer.load(conv_id, state.get("workflow_run_id"))
         except Exception as exc:
             logger.exception(
                 "Failed to load conversation %s: %s", conv_id, exc

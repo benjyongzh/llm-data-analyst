@@ -142,7 +142,7 @@ async def conversation_query(
     summary = state.get("summary", "")
     messages = state.get("messages", [])
     history_update = {"summary": summary, "messages": messages + new_messages}
-    checkpointer.save(conversation_id, history_update)
+    checkpointer.save(conversation_id, workflow_run_id, history_update)
 
     return result
 
