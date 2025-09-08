@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List
 
 from openai import OpenAI
 
 from config import get_settings
 from semantic.mapper import resolve_term
+
+from schemas import LLMResponse
 
 settings = get_settings()
 from workflows.base import WorkflowState, logger, track_step, append_error
@@ -28,27 +29,33 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
             "schema": {
                 "type": "object",
                 "properties": {
-                    "intent": {"type": "string"},
-                    "entities": {
+                    "response": {
                         "type": "object",
                         "properties": {
-                            "metrics": {
+                            "intent": {"type": "string"},
+                            "entities": {
+                                "type": "object",
+                                "properties": {
+                                    "metrics": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    },
+                                    "dimensions": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    },
+                                    "timeframe": {"type": "string"},
+                                },
+                            },
+                            "clarification_questions": {
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
-                            "dimensions": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                            "timeframe": {"type": "string"},
                         },
-                    },
-                    "clarification_questions": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
+                        "required": ["intent", "entities", "clarification_questions"],
+                    }
                 },
-                "required": ["intent", "entities", "clarification_questions"],
+                "required": ["response"],
             },
         },
     }
@@ -70,7 +77,7 @@ def intent_understanding(state: WorkflowState) -> WorkflowState:
         if getattr(resp, "usage", None):
             state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
             state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
-        parsed = json.loads(raw_text)
+        parsed = LLMResponse.model_validate_json(raw_text).response
     except Exception as exc:  # pragma: no cover - LLM failure fallback
         logger.exception("Failed to parse intent response: %s", exc)
         append_error(state, "intent_understanding", str(exc))

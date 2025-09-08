@@ -6,9 +6,11 @@ from openai import OpenAI
 
 from config import get_settings
 
-settings = get_settings()
+from schemas import LLMResponse
 from services import checkpoint_service
 from services.logging_service import create_logged_response
+
+settings = get_settings()
 
 
 class ConversationCheckpointer(InMemorySaver):
@@ -42,7 +44,7 @@ class ConversationCheckpointer(InMemorySaver):
         parts.append("New messages:\n" + "\n".join(formatted))
         prompt = "\n\n".join(parts)
         try:
-            resp, text = create_logged_response(
+            resp, raw = create_logged_response(
                 self.client,
                 step="conversation_summary",
                 model=settings.LLM_RESPONSE_MODEL,
@@ -51,7 +53,7 @@ class ConversationCheckpointer(InMemorySaver):
                     + prompt
                 ),
             )
-            return text.strip()
+            return LLMResponse.model_validate_json(raw).response.strip()
         except Exception:
             return summary
 

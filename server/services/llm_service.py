@@ -9,7 +9,7 @@ from langchain.agents.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
-from schemas import DBConnection
+from schemas import DBConnection, LLMResponse
 from config import get_settings
 from services.logging_service import log_llm_output, create_logged_response
 
@@ -41,7 +41,7 @@ async def extract_data(
             llm, db, agent_type=AgentType.OPENAI_FUNCTIONS, verbose=False
         )
 
-        query = (f"{prompt}\n" "Return the results as a JSON array of objects.")
+        query = f"{prompt}\nReturn the results as a JSON array of objects."
         result = agent.invoke({"input": query})
         log_llm_output("extract_data", result)
         data_text = result["output"] if isinstance(result, dict) else result
@@ -70,11 +70,17 @@ async def choose_charts(
             "json_schema": {
                 "name": "chart_recommendations",
                 "schema": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": available_charts,
+                    "type": "object",
+                    "properties": {
+                        "response": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": available_charts,
+                            },
+                        }
                     },
+                    "required": ["response"],
                 },
             },
         }
@@ -93,7 +99,7 @@ async def choose_charts(
             input=message,
             response_format=response_format,
         )
-        selections = json.loads(raw)
+        selections = LLMResponse.model_validate_json(raw).response
         return list(selections)
 
     return await asyncio.to_thread(_run)

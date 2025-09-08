@@ -8,6 +8,7 @@ from typing import Any, Tuple
 from openai import OpenAI
 
 from services import agent_run_service
+from services.prompt_wrapper import wrap_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,15 @@ def create_logged_response(
     when available. Returns the full response object along with the extracted
     text so callers can handle token accounting or parse the text as needed.
     When ``workflow_run_id`` is provided, the call is recorded in ``agent_run``
-    for auditing.
+    for auditing. Prompts are automatically wrapped with
+    :func:`services.prompt_wrapper.wrap_prompt` so all responses conform to
+    :class:`schemas.LLMResponse`.
     """
 
     step_name = step or get_current_step() or "unknown"
     prompt = kwargs.get("input")
+    if isinstance(prompt, str):
+        kwargs["input"] = wrap_prompt(prompt)
     model_name = kwargs.get("model")
 
     agent_run_id: str | None = None
