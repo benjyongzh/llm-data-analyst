@@ -10,6 +10,7 @@ from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
 from schemas import DBConnection, LLMResponse
+from services.prompt_wrapper import wrap_prompt
 from config import get_settings
 from services.logging_service import log_llm_output, create_logged_response
 
@@ -41,11 +42,28 @@ async def extract_data(
             llm, db, agent_type=AgentType.OPENAI_FUNCTIONS, verbose=False
         )
 
-        query = f"{prompt}\nReturn the results as a JSON array of objects."
+        base_query = f"{prompt}\nReturn the results as a JSON array of objects."
+        # Ensure prompt is wrapped so the agent returns a JSON object
+        # matching schemas.LLMResponse, with the array inside `response`.
+        query = wrap_prompt(base_query)
         result = agent.invoke({"input": query})
         log_llm_output("extract_data", result)
         data_text = result["output"] if isinstance(result, dict) else result
-        payload = json.loads(data_text)
+
+        # Try to parse wrapped response first, then fall back to legacy parsing.
+        payload = None
+        try:
+            wrapped = LLMResponse.model_validate_json(data_text).response
+            # If the `response` itself is a JSON string, decode it.
+            if isinstance(wrapped, str):
+                payload = json.loads(wrapped)
+            else:
+                payload = wrapped
+        except Exception:
+            # Fallback for unwrapped outputs (older agents) that directly
+            # returned a JSON array as text.
+            payload = json.loads(data_text)
+
         if not isinstance(payload, list):
             raise ValueError("Expected JSON array from SQL agent")
         return payload

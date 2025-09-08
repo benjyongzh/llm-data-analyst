@@ -8,12 +8,22 @@ from schemas import LLMResponse
 
 def _build_prefix() -> str:
     schema = json.dumps(LLMResponse.model_json_schema(), separators=(",", ":"))
+    example = (
+        "\nExample of a valid response (values are illustrative only):\n"
+        "{\n"
+        # '  "thoughts": ["step 1 reasoning", "step 2 reasoning"],\n'
+        '  "response": "This is the final user-facing answer."\n'
+        "}\n\n"
+    )
     return (
-        "You must respond with a JSON object that matches this schema:\n"
-        f"{schema}\n"
-        "This is a 100% requirement. Do not include any text outside the JSON object. "
-        "If the user's prompt requests its own JSON structure, place that JSON inside the `response` field. "
-        "The `response` field must contain the final user-facing answer."
+        "You must respond with a JSON object that strictly matches this schema:\n"
+        f"{schema}\n\n"
+        "Requirements:\n"
+        "- Output ONLY a single JSON object (no extra text before or after).\n"
+        "- If the instructional prompt itself asks for JSON, put that JSON inside the `response` field.\n"
+        "- The `response` field must always contain the final user-facing answer.\n"
+        f"{example}"
+        "Here is the instructional prompt:\n"
     )
 
 
@@ -21,7 +31,11 @@ PROMPT_PREFIX = _build_prefix()
 
 
 def _build_suffix() -> str:
-    return "Return only the JSON object described above and nothing else."
+    return (
+        "End of instructional prompt.\n"
+        "Reminder: Return only the JSON object that matches the schema mentioned at the start of this entire prompt.\n"
+        "Do not include explanations, commentary, or any text outside the JSON."
+    )
 
 
 PROMPT_SUFFIX = _build_suffix()
