@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List
 
 from openai import OpenAI
 
 from config import get_settings
+
+from schemas import LLMResponse
 
 settings = get_settings()
 from workflows.base import WorkflowState, logger, track_step, append_error
@@ -26,19 +27,25 @@ def task_planning(state: WorkflowState) -> WorkflowState:
             "schema": {
                 "type": "object",
                 "properties": {
-                    "tasks": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "description": {"type": "string"},
-                                "requires_data": {"type": "boolean"},
-                            },
-                            "required": ["description", "requires_data"],
+                    "response": {
+                        "type": "object",
+                        "properties": {
+                            "tasks": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "description": {"type": "string"},
+                                        "requires_data": {"type": "boolean"},
+                                    },
+                                    "required": ["description", "requires_data"],
+                                },
+                            }
                         },
+                        "required": ["tasks"],
                     }
                 },
-                "required": ["tasks"],
+                "required": ["response"],
             },
         },
     }
@@ -57,7 +64,7 @@ def task_planning(state: WorkflowState) -> WorkflowState:
         if getattr(resp, "usage", None):
             state["tokens_in"] = getattr(resp.usage, "input_tokens", 0)
             state["tokens_out"] = getattr(resp.usage, "output_tokens", 0)
-        data = json.loads(raw)
+        data = LLMResponse.model_validate_json(raw).response
         planned = data.get("tasks", [])
     except Exception as exc:
         logger.exception("Task planning failed: %s", exc)

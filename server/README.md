@@ -4,6 +4,7 @@ Overview
 - FastAPI backend for the LLM Data Analyst app.
 - Serves REST endpoints for users, DB connections, conversations, step logs, and semantic mappings under `/users`, `/db-connections`, `/conversations`, `/step-logs`, and `/mappings`.
 - Debug logs mark entry and exit of each workflow step and capture raw LLM output; OpenAI calls made through a helper automatically include the current step name.
+- Prompts are automatically wrapped with strict prefix and suffix instructions derived from the `LLMResponse` model (`schemas/llm.py`). Responses must be JSON objects with a single `response` field containing the final answer, and any JSON structure requested by the prompt is nested inside `response`. Adjusting this model updates both the prompt wrapper and response parsing.
 - Workflow runs, steps, and agent invocations are stored in Postgres tables for auditing and debugging. Status fields use a shared `run_status` enum (`running`, `succeeded`, `failed`, `cancelled`).
 
 Prerequisites
