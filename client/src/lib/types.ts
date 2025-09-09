@@ -4,11 +4,12 @@ export type User = {
 }
 
 export type DBConnection = {
-  db_name: string
-  user: string
-  password: string
+  db_name?: string
+  user?: string
+  password?: string
   host?: string
-  port: number
+  port?: number
+  url?: string
 }
 
 export type DBConnItem = {
