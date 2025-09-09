@@ -1,4 +1,4 @@
-import {
+import type {
   DBConnection,
   MessageContent,
   QueryResponse,
@@ -84,14 +84,26 @@ export async function listDbConnections() {
 export async function createDbConnection(body: DBConnection & { user_id: string }) {
   if (USE_MOCK_DB_CONNECTIONS) {
     const id = crypto.randomUUID()
-    mockDbConnections.push({
-      id,
-      db_name: body.db_name,
-      host: body.host ?? 'localhost',
-      port: body.port,
-      user: body.user,
-      enabled: true,
-    })
+    if (body.url) {
+      const parsed = new URL(body.url)
+      mockDbConnections.push({
+        id,
+        db_name: body.db_name ?? '',
+        host: parsed.hostname,
+        port: parsed.port ? Number(parsed.port) : 5432,
+        user: parsed.username,
+        enabled: true,
+      })
+    } else {
+      mockDbConnections.push({
+        id,
+        db_name: body.db_name ?? '',
+        host: body.host ?? 'localhost',
+        port: body.port ?? 5432,
+        user: body.user ?? '',
+        enabled: true,
+      })
+    }
     return { db_connection_id: id }
   }
   return fetchJson<{ db_connection_id: string }>(`${API_BASE}/db-connections`, {
@@ -106,10 +118,18 @@ export async function updateDbConnection(id: string, body: DBConnection & { user
   if (USE_MOCK_DB_CONNECTIONS) {
     const conn = mockDbConnections.find((c) => c.id === id)
     if (conn) {
-      conn.db_name = body.db_name
-      conn.host = body.host ?? 'localhost'
-      conn.port = body.port
-      conn.user = body.user
+      if (body.url) {
+        const parsed = new URL(body.url)
+        conn.db_name = body.db_name ?? conn.db_name
+        conn.host = parsed.hostname
+        conn.port = parsed.port ? Number(parsed.port) : 5432
+        conn.user = parsed.username
+      } else {
+        conn.db_name = body.db_name ?? conn.db_name
+        conn.host = body.host ?? conn.host
+        conn.port = body.port ?? conn.port
+        conn.user = body.user ?? conn.user
+      }
     }
     return { status: 'ok' }
   }

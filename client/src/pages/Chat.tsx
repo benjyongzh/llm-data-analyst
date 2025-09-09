@@ -40,7 +40,15 @@ export default function Chat({ user }: Props) {
   const [selectedConn, setSelectedConn] = useState<string | undefined>()
   const [connOpen, setConnOpen] = useState(false)
   const [editingConn, setEditingConn] = useState<string | null>(null)
-  const [connForm, setConnForm] = useState({ db_name: '', host: '', port: 5432, user: '', password: '' })
+  const [useUrl, setUseUrl] = useState(false)
+  const [connForm, setConnForm] = useState({
+    db_name: '',
+    host: '',
+    port: 5432,
+    user: '',
+    password: '',
+    url: '',
+  })
   const [connLoading, setConnLoading] = useState(false)
 
   const {
@@ -97,8 +105,16 @@ export default function Chat({ user }: Props) {
     setError(null)
     setMsgError(null)
     setConnLoading(true)
-    const body = { ...connForm, user_id: user.user_id }
+    let body
     try {
+      if (useUrl) {
+        body = { db_name: connForm.db_name, url: connForm.url, user_id: user.user_id }
+      } else {
+        const { url, ...rest } = connForm
+        void url
+        body = { ...rest, user_id: user.user_id }
+      }
+
       if (editingConn) {
         await updateDbConnection(editingConn, body)
       } else {
@@ -126,13 +142,22 @@ export default function Chat({ user }: Props) {
 
   const openAddConn = () => {
     setEditingConn(null)
-    setConnForm({ db_name: '', host: '', port: 5432, user: '', password: '' })
+    setUseUrl(false)
+    setConnForm({ db_name: '', host: '', port: 5432, user: '', password: '', url: '' })
     setConnOpen(true)
   }
 
   const openEditConn = (c: DBConnItem) => {
     setEditingConn(c.id)
-    setConnForm({ db_name: c.db_name, host: c.host, port: c.port, user: c.user, password: '' })
+    setUseUrl(false)
+    setConnForm({
+      db_name: c.db_name,
+      host: c.host,
+      port: c.port,
+      user: c.user,
+      password: '',
+      url: '',
+    })
     setConnOpen(true)
   }
 
@@ -232,29 +257,54 @@ export default function Chat({ user }: Props) {
             <Input
               placeholder="Database Name"
               value={connForm.db_name}
-              onChange={(e) => setConnForm({ ...connForm, db_name: e.target.value })}
+              onChange={(e) =>
+                setConnForm({ ...connForm, db_name: e.target.value })
+              }
+            />
+            <Separator />
+            <label className="flex items-center space-x-2 text-sm">
+              <input
+                type="checkbox"
+                checked={useUrl}
+                onChange={(e) => setUseUrl(e.target.checked)}
+              />
+              <span>Use database URL</span>
+            </label>
+            <Input
+              placeholder="Database URL"
+              value={connForm.url}
+              onChange={(e) => setConnForm({ ...connForm, url: e.target.value })}
+              disabled={!useUrl}
             />
             <Input
               placeholder="Host"
               value={connForm.host}
               onChange={(e) => setConnForm({ ...connForm, host: e.target.value })}
-            />
-            <Input
-              placeholder="Port"
-              type="number"
-              value={connForm.port}
-              onChange={(e) => setConnForm({ ...connForm, port: Number(e.target.value) })}
+              disabled={useUrl}
             />
             <Input
               placeholder="Username"
               value={connForm.user}
               onChange={(e) => setConnForm({ ...connForm, user: e.target.value })}
+              disabled={useUrl}
             />
             <Input
               placeholder="Password"
               type="password"
               value={connForm.password}
-              onChange={(e) => setConnForm({ ...connForm, password: e.target.value })}
+              onChange={(e) =>
+                setConnForm({ ...connForm, password: e.target.value })
+              }
+              disabled={useUrl}
+            />
+            <Input
+              placeholder="Port"
+              type="number"
+              value={connForm.port}
+              onChange={(e) =>
+                setConnForm({ ...connForm, port: Number(e.target.value) })
+              }
+              disabled={useUrl}
             />
           </div>
           <DialogFooter>
