@@ -10,7 +10,7 @@ React + Vite front end and a FastAPI backend.
 - Manage and enable/disable database connections
 - Connection form allows toggling between a full database URL or separate host credentials, disabling unused credential inputs while keeping the database name editable
 - Create conversations and retrieve full message history
-- Toggleable sidebar for switching conversations and configuring connections, fetching conversations on mount
+- Toggleable sidebar built with a shadcn UI component for switching conversations and configuring connections, fetching conversations on mount
 - Optional mock user, conversation, and message data for frontend development
 - <!-- Conversations are summarized after each assistant reply using an LLM to keep
   context within token limits, and each summary records its last refresh time -->
