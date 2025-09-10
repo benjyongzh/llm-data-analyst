@@ -8,6 +8,7 @@ React + Vite front end and a FastAPI backend.
 - User registration and login with JWT stored in HTTP‑only cookies; no credentials are kept in
   `localStorage`
 - Manage and enable/disable database connections
+- Select database connections for new conversations via a popover
 - Connection form allows toggling between a full database URL or separate host credentials, disabling unused credential inputs while keeping the database name editable
 - Create conversations and retrieve full message history
 - Toggleable sidebar built with a shadcn UI component for switching conversations and configuring connections, fetching conversations on mount
@@ -487,8 +488,8 @@ schema and reuse the mock user's ID for foreign keys. Set
 connection for creating, updating, enabling, and disabling connections on the
 client.
 
-On first launch, register an account on the login page. After logging in, create a
-database connection from the dropdown to start a conversation and run queries. The
+On first launch, register an account on the login page. After logging in, select a
+database connection from the popover to start a conversation and run queries. The
 connection dialog now lists the Database Name field first, followed by a separator and a
 checkbox to switch between a full connection URL and separate host credentials. Host
 credential fields are disabled when using a URL, while the URL field is disabled when
