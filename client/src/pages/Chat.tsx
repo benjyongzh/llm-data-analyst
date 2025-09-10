@@ -3,12 +3,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select'
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@/components/ui/popover'
 import {
   Dialog,
   DialogContent,
@@ -38,6 +36,7 @@ type Props = { user: User }
 export default function Chat({ user }: Props) {
   const [dbConns, setDbConns] = useState<DBConnItem[]>([])
   const [selectedConn, setSelectedConn] = useState<string | undefined>()
+  const [connSelectOpen, setConnSelectOpen] = useState(false)
   const [connOpen, setConnOpen] = useState(false)
   const [editingConn, setEditingConn] = useState<string | null>(null)
   const [useUrl, setUseUrl] = useState(false)
@@ -210,28 +209,43 @@ export default function Chat({ user }: Props) {
       {allError && <p className="px-4 text-sm text-red-500">{allError}</p>}
       <Separator />
       <div className="px-4 pb-4 pt-2 flex items-center gap-2">
-        <Select
-          value={selectedConn}
-          onValueChange={(v: string) => {
-            if (v === 'add') {
-              openAddConn()
-            } else {
-              setSelectedConn(v)
-            }
-          }}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="DB Connection" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="add">Add connection</SelectItem>
-            {dbConns.map((c) => (
-              <SelectItem key={c.id} value={c.id} disabled={!c.enabled}>
-                {c.db_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={connSelectOpen} onOpenChange={setConnSelectOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-start">
+              {selectedConn
+                ? dbConns.find((c) => c.id === selectedConn)?.db_name
+                : 'DB Connection'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0 w-[200px]">
+            <div className="flex flex-col">
+              <Button
+                variant="ghost"
+                className="justify-start"
+                onClick={() => {
+                  openAddConn()
+                  setConnSelectOpen(false)
+                }}
+              >
+                Add connection
+              </Button>
+              {dbConns.map((c) => (
+                <Button
+                  key={c.id}
+                  variant="ghost"
+                  className="justify-start"
+                  disabled={!c.enabled}
+                  onClick={() => {
+                    setSelectedConn(c.id)
+                    setConnSelectOpen(false)
+                  }}
+                >
+                  {c.db_name}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
         <Input
           className="flex-1"
           placeholder="Send a message..."
