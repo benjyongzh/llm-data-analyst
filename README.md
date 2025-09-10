@@ -13,6 +13,7 @@ React + Vite front end and a FastAPI backend.
 - Create conversations and retrieve full message history
 - Toggleable sidebar built with a shadcn UI component for switching conversations and configuring connections, fetching conversations on mount
 - Optional mock user, conversation, and message data for frontend development
+- Global dark theme toggle via sun/moon icon button on all pages
 - <!-- Conversations are summarized after each assistant reply using an LLM to keep
   context within token limits, and each summary records its last refresh time -->
 - Chat UI built with reusable layout and custom hooks for conversations and messages
