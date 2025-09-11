@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import os
+import uuid
 
-from fastapi import APIRouter, HTTPException, Depends
+import httpx
+from fastapi import APIRouter, HTTPException, Depends, status
 from schemas import (
     ConversationCreateRequest,
     ConversationCreateResponse,
@@ -37,6 +40,44 @@ async def create_conversation(
         request.user_id, request.db_connection_id, request.title, request.model
     )
     return ConversationCreateResponse(conversation_id=conv_id)
+
+
+@router.post("/start", status_code=status.HTTP_200_OK)
+async def start_chat(
+    conversation_id: str,
+    request: ConversationQueryRequest,
+    token_data: dict = Depends(verify_token),
+):
+    try:
+        await conversation_service.get_conversation_db_connection(
+            conversation_id, token_data["user_id"]
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 400 if detail == "DB connection disabled" else 404
+        raise HTTPException(status_code=status_code, detail=detail)
+
+    workflow_run_id = str(uuid.uuid4())
+    worker_base = os.environ.get("FLY_WORKER_BASE_URL", "")
+    stream_base = os.environ.get("FLY_STREAM_BASE_URL", "")
+
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{worker_base}/runs/start",
+            json={
+                "conversation_id": conversation_id,
+                "workflow_run_id": workflow_run_id,
+                "prompt": request.prompt,
+                "user_id": token_data["user_id"],
+                "available_charts": request.available_charts,
+                "model_name": request.model_name,
+            },
+        )
+
+    return {
+        "workflow_run_id": workflow_run_id,
+        "sse_url": f"{stream_base}/stream/{workflow_run_id}",
+    }
 
 
 @router.post("/{conversation_id}/query", response_model=QueryResponse)

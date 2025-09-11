@@ -1,0 +1,11 @@
+app = "llm-redis"
+primary_region = "sin"
+
+[build]
+  image = "flyio/redis:7.2"
+
+[metrics]
+  port = 9121
+
+[env]
+  REDIS_PORT = "6379"

@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
-import { conversationQuery, createConversation } from '@/lib/api'
+import { createConversation, startChat } from '@/lib/api'
 import type { Message, User, ConversationListItem } from '@/lib/types'
-import { formatMessageContents } from '@/lib/utils'
+import type { WorkflowEvent } from '@/lib/eventSchema'
+import { useWorkflowStream } from './useWorkflowStream'
 
 type Options = {
   user: User
@@ -26,12 +27,40 @@ export function useMessages({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const [stream, setStream] = useState<
+    | { runId: string; sseUrl: string; convoId: string; loadingId: string }
+    | null
+  >(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messagesMap, currentConvo])
 
   const messages = messagesMap[currentConvo ?? ''] || []
+
+  const handleStreamEvent = (event: WorkflowEvent) => {
+    if (!stream) return
+    const { convoId, loadingId } = stream
+    if (event.type === 'agent_token') {
+      setMessagesMap((prev) => ({
+        ...prev,
+        [convoId]: prev[convoId].map((m) =>
+          m.id === loadingId ? { ...m, content: (m.content || '') + (event.delta || '') } : m
+        ),
+      }))
+    } else if (event.type === 'agent_message') {
+      setMessagesMap((prev) => ({
+        ...prev,
+        [convoId]: prev[convoId].map((m) =>
+          m.id === loadingId ? { ...m, content: event.content || '', pending: false } : m
+        ),
+      }))
+    } else if (event.type === 'done') {
+      setStream(null)
+    }
+  }
+
+  useWorkflowStream(stream?.runId ?? null, stream?.sseUrl ?? null, handleStreamEvent)
 
   const handleSend = async () => {
     const trimmed = input.trim()
@@ -63,18 +92,12 @@ export function useMessages({
         ],
       }))
       setInput('')
-      const res = await conversationQuery(convoId!, {
+      const { workflow_run_id, sse_url } = await startChat(convoId!, {
         prompt: trimmed,
-        available_charts: ['bar', 'line', 'pie'],
+        available_charts: [],
         model_name: 'gpt-4o-mini',
       })
-      const assistantText = formatMessageContents(res.data.message)
-      setMessagesMap((prev) => ({
-        ...prev,
-        [convoId!]: prev[convoId!].map((m) =>
-          m.id === loadingId ? { ...m, content: assistantText, pending: false } : m
-        ),
-      }))
+      setStream({ runId: workflow_run_id, sseUrl: sse_url, convoId: convoId!, loadingId })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message')
       if (convoId && loadingId) {

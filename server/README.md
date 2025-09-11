@@ -25,9 +25,12 @@ Environment Variables
   - `LOG_LEVEL` (default `DEBUG`): Logging level configured in `main.py`.
   - `CONVERSATION_MEMORY_K` (default `5`): Rolling memory window in `workflows/checkpointer.py`.
   - `REDIS_URL` (default `redis://localhost:6379/0`): Redis connection string used for caching semantic mappings.
+  - `FLY_WORKER_BASE_URL`: URL of the Fly.io worker used to start runs.
+  - `FLY_STREAM_BASE_URL`: Base URL for the SSE stream service.
+  - `RUN_JWT_SECRET`: Shared secret for signing workflow run tokens.
 
 Example `.env`
-See `server/.env-example` for a complete, working template. Copy it to `.env` and adjust values:
+See `server/.env.example` for a complete, working template. Copy it to `.env` and adjust values:
 
 ```
 LLM_API_KEY=your-openai-key
@@ -39,10 +42,13 @@ LOG_LEVEL=DEBUG
 CONVERSATION_MEMORY_K=5
 DATABASE_URL=postgresql://localhost/metadata
 REDIS_URL=redis://localhost:6379/0
+FLY_WORKER_BASE_URL=https://worker.example.com
+FLY_STREAM_BASE_URL=https://stream.example.com
+RUN_JWT_SECRET=change-me
 ```
 
 Setup
-- From `server/`, create a `.env` file (see `.env-example`) and set at least:
+- From `server/`, create a `.env` file (see `.env.example`) and set at least:
   - `LLM_API_KEY`: your model provider key
   - `JWT_SECRET`: secret for signing JWT cookies
   - `DATABASE_URL`: Postgres DSN for app data store

@@ -1,0 +1,16 @@
+app = "llm-worker"
+primary_region = "sin"
+
+# Runs the shared `server.main:app` with worker routes enabled.
+[build]
+  path = ".."
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+[env]
+  REDIS_URL = "redis://llm-redis.internal:6379/0"
+  LLM_API_KEY = "sk-..."
+  RUN_JWT_SECRET = "change-me"
+  DATABASE_URL = "postgresql://user:pass@db.internal:5432/app"
