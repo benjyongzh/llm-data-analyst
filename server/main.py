@@ -13,6 +13,7 @@ from api.v1.routes import (
     step_logs_router,
     mappings_router,
     debug_router,
+    worker_router,
 )
 from config import get_settings
 
@@ -68,3 +69,4 @@ app.include_router(conversations_router)
 app.include_router(step_logs_router)
 app.include_router(mappings_router)
 app.include_router(debug_router)
+app.include_router(worker_router)  # internal worker/Redis endpoints
