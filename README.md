@@ -27,6 +27,9 @@ React + Vite front end and a FastAPI backend.
   structured error messages instead of raw server errors. The conversation
   endpoint returns this array while still responding with status `ok` unless an
   unhandled exception stops the workflow
+- Chat responses stream token-by-token through a Fly.io worker using Redis
+  Streams and Server-Sent Events, allowing the UI to render assistant output in
+  real time
 - Guardrail checks validate generated SQL and responses, detecting PII or
   profanity and halting the workflow on violations
 - Intent classification and entity extraction are handled by an LLM instead of keyword heuristics
@@ -82,6 +85,26 @@ Environment variables:
 - `DATABASE_URL` – connection string for the application's metadata DB. The server logs an error and exits if the database connection cannot be established.
 - `LOG_LEVEL` – logging level for the backend (default `DEBUG`)
 - `REDIS_URL` – connection string for the Redis instance used to cache semantic mappings (default `redis://localhost:6379/0`)
+- `FLY_WORKER_BASE_URL` – URL of the Fly.io worker used to start runs
+- `FLY_STREAM_BASE_URL` – base URL for the SSE stream service
+- `RUN_JWT_SECRET` – shared secret for signing workflow run tokens
+
+Sample `.env.example` files live in `client/` and `server/` (the worker service ships its sample under `server/worker/`).
+## Streaming worker
+
+The primary FastAPI app also exposes worker-only endpoints that publish
+workflow events to Redis Streams and serve them over Server-Sent Events.
+Run the server locally to access both API and worker routes:
+
+Fly deployment files (`fly.toml`) for the worker and Redis live under
+`server/worker/` and `server/redis/`.
+
+```bash
+cd server
+uv run uvicorn main:app --reload
+```
+
+The worker expects `REDIS_URL`, `DATABASE_URL`, `LLM_API_KEY`, and `RUN_JWT_SECRET` to be set.
 
 ## API overview
 
@@ -109,6 +132,7 @@ JWT cookie unless noted.
   of objects with each conversation's `id` and optional `title`.
 - `GET /conversations/{id}` – fetch a conversation with its messages
 - `POST /conversations` – create a conversation bound to a DB connection
+- `POST /conversations/start` – initiate a workflow run and receive an SSE URL
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
   response uses a standard envelope with `status`, `code`, and a `data.message`
   array of parts. Each part is validated using the `TextContent` or

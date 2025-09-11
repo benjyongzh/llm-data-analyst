@@ -11,7 +11,10 @@ import {
   mockDbConnections,
 } from './mock'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE_URL ??
+  process.env.API_BASE_URL ??
+  'http://localhost:8000'
 const USE_MOCK_USER = import.meta.env.VITE_USE_MOCK_USER === 'true'
 const USE_MOCK_CONVERSATIONS =
   import.meta.env.VITE_USE_MOCK_CONVERSATIONS === 'true'
@@ -228,4 +231,19 @@ export async function conversationQuery(
     body: JSON.stringify(body),
     credentials: 'include',
   })
+}
+
+export async function startChat(
+  conversation_id: string,
+  body: { prompt: string; available_charts: string[]; model_name: string }
+) {
+  return fetchJson<{ workflow_run_id: string; sse_url: string }>(
+    `${API_BASE}/conversations/start?conversation_id=${encodeURIComponent(conversation_id)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      credentials: 'include',
+    }
+  )
 }
