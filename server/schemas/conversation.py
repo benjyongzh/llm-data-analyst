@@ -77,14 +77,16 @@ class ConversationCreateRequest(BaseModel):
 
     user_id: str
     db_connection_id: str
-    title: Optional[str] = None
+    conversation_id: str
+    prompt: str
     model: Optional[str] = None
 
 
 class ConversationCreateResponse(BaseModel):
-    """Response containing the new conversation id."""
+    """Response containing the conversation id and an optional title."""
 
     conversation_id: str
+    title: Optional[str] = None
 
 
 class ConversationListItem(BaseModel):

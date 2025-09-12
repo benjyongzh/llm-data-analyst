@@ -6,28 +6,41 @@ from typing import Any, Dict, Optional, Tuple, List
 from db.database import get_pool
 from schemas.db_connection import DBConnection
 from .semantic_mapping_service import ensure_mapping
+from .llm_service import generate_title
 
 
 logger = logging.getLogger(__name__)
 
 
 async def create_conversation(
-    user_id: str, db_connection_id: str, title: Optional[str], model: Optional[str]
-) -> str:
-    """Create a new conversation and return its id."""
+    conversation_id: str,
+    user_id: str,
+    db_connection_id: str,
+    prompt: str,
+    model: Optional[str],
+) -> Tuple[str, Optional[str]]:
+    """Create a new conversation and return its id and optional title."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
+        existing = await conn.fetchrow(
+            "SELECT 1 FROM conversation WHERE id=$1",
+            conversation_id,
+        )
+        if existing:
+            return conversation_id, None
+
+        title = await generate_title(prompt, model)
+        await conn.execute(
             """
-            INSERT INTO conversation (user_id, db_connection_id, title, model)
-            VALUES ($1, $2, $3, $4) RETURNING id
+            INSERT INTO conversation (id, user_id, db_connection_id, title, model)
+            VALUES ($1, $2, $3, $4, $5)
             """,
+            conversation_id,
             user_id,
             db_connection_id,
             title,
             model,
         )
-        convo_id = str(row["id"])
 
         db_row = await conn.fetchrow(
             """
@@ -45,7 +58,7 @@ async def create_conversation(
             f"@{db_row['host']}:{db_row['port']}/{db_row['db_name']}"
         )
         await ensure_mapping(user_id, db_connection_id, dsn)
-    return convo_id
+    return conversation_id, title
 
 
 async def get_conversation_db_connection(

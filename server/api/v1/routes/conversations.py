@@ -36,10 +36,16 @@ async def create_conversation(
 ) -> ConversationCreateResponse:
     if token_data["user_id"] != request.user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    conv_id = await conversation_service.create_conversation(
-        request.user_id, request.db_connection_id, request.title, request.model
+    conv_id, title = await conversation_service.create_conversation(
+        request.conversation_id,
+        request.user_id,
+        request.db_connection_id,
+        request.prompt,
+        request.model,
     )
-    return ConversationCreateResponse(conversation_id=conv_id)
+    if title is None:
+        return ConversationCreateResponse(conversation_id=conv_id)
+    return ConversationCreateResponse(conversation_id=conv_id, title=title)
 
 
 @router.post("/start", status_code=status.HTTP_200_OK)

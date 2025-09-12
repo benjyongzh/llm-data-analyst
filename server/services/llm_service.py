@@ -121,3 +121,37 @@ async def choose_charts(
         return list(selections)
 
     return await asyncio.to_thread(_run)
+
+
+async def generate_title(prompt: str, model_name: str | None = None) -> str:
+    """Generate a short conversation title from the user's prompt."""
+
+    def _run() -> str:
+        client = OpenAI(api_key=settings.LLM_API_KEY)
+        model = model_name or settings.LLM_RESPONSE_MODEL
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "conversation_title",
+                "schema": {
+                    "type": "object",
+                    "properties": {"response": {"type": "string"}},
+                    "required": ["response"],
+                },
+            },
+        }
+        message = (
+            "Generate a concise title using between 2 and 7 words for the "
+            f"following user message.\nUser message: {prompt}"
+        )
+        resp, raw = create_logged_response(
+            client,
+            step="title_generator",
+            model=model,
+            input=message,
+            response_format=response_format,
+        )
+        title = LLMResponse.model_validate_json(raw).response
+        return str(title).strip()
+
+    return await asyncio.to_thread(_run)

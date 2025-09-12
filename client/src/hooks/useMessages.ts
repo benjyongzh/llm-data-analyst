@@ -72,14 +72,18 @@ export function useMessages({
     try {
       if (!convoId) {
         if (!selectedConn) return
-        const { conversation_id } = await createConversation({
+        const newId = crypto.randomUUID()
+        const { conversation_id, title } = await createConversation({
           user_id: user.user_id,
           db_connection_id: selectedConn,
-          title: trimmed.slice(0, 20),
+          conversation_id: newId,
+          prompt: trimmed,
         })
         convoId = conversation_id
         setCurrentConvo(convoId)
-        setConvos((prev) => [{ id: convoId!, title: trimmed.slice(0, 20) }, ...prev])
+        if (title) {
+          setConvos((prev) => [{ id: convoId!, title }, ...prev])
+        }
       }
       const id = crypto.randomUUID()
       loadingId = crypto.randomUUID()

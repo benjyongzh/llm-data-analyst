@@ -11,6 +11,7 @@ React + Vite front end and a FastAPI backend.
 - Select database connections for new conversations via a popover
 - Connection form allows toggling between a full database URL or separate host credentials, disabling unused credential inputs while keeping the database name editable
 - Create conversations and retrieve full message history
+- Conversation titles are automatically suggested by a `title_generator` LLM agent based on the first user prompt
 - Toggleable sidebar built with a shadcn UI component for switching conversations and configuring connections, fetching conversations on mount
 - Optional mock user, conversation, and message data for frontend development
 - Global dark theme toggle via sun/moon icon button on all pages
@@ -133,7 +134,9 @@ JWT cookie unless noted.
 - `GET /conversations` – list conversations for the current user. Returns an array
   of objects with each conversation's `id` and optional `title`.
 - `GET /conversations/{id}` – fetch a conversation with its messages
-- `POST /conversations` – create a conversation bound to a DB connection
+- `POST /conversations` – create a conversation bound to a DB connection. Clients
+  provide a UUID and first prompt; if the ID is new, the response also includes
+  a generated title.
 - `POST /conversations/start` – initiate a workflow run and receive an SSE URL
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
   response uses a standard envelope with `status`, `code`, and a `data.message`
