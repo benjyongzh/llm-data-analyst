@@ -30,6 +30,8 @@ React + Vite front end and a FastAPI backend.
 - Chat responses stream token-by-token through a Fly.io worker using Redis
   Streams and Server-Sent Events, allowing the UI to render assistant output in
   real time
+- Chat bubbles display streamed tokens as they arrive, showing partial
+  assistant responses even while messages are pending
 - Guardrail checks validate generated SQL and responses, detecting PII or
   profanity and halting the workflow on violations
 - Intent classification and entity extraction are handled by an LLM instead of keyword heuristics

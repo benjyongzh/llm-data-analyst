@@ -19,14 +19,15 @@ export function ChatBubble({ message }: { message: Message }) {
             : 'bg-secondary text-secondary-foreground rounded-bl-sm'
         )}
       >
-        {message.pending ? (
+        <pre className="whitespace-pre-wrap break-words font-sans">
+          {message.content}
+        </pre>
+        {message.pending && (
           <span className="inline-flex items-center gap-1 opacity-70">
             <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]"></span>
             <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]"></span>
             <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-current"></span>
           </span>
-        ) : (
-          <pre className="whitespace-pre-wrap break-words font-sans">{message.content}</pre>
         )}
       </div>
       {isUser && (
