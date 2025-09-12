@@ -212,13 +212,22 @@ export async function getConversation(id: string) {
   })
 }
 
-export async function createConversation(body: { user_id: string; db_connection_id: string; title?: string; model?: string }) {
-  return fetchJson<{ conversation_id: string }>(`${API_BASE}/conversations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'include',
-  })
+export async function createConversation(body: {
+  user_id: string
+  db_connection_id: string
+  conversation_id: string
+  prompt: string
+  model?: string
+}) {
+  return fetchJson<{ conversation_id: string; title?: string }>(
+    `${API_BASE}/conversations`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      credentials: 'include',
+    }
+  )
 }
 
 export async function conversationQuery(
