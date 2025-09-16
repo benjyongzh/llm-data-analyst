@@ -5,18 +5,25 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  SidebarHeader,
 } from '@/components/ui/sidebar'
 
 type Props = {
   sidebar: ReactNode
   children: ReactNode
+  sidebarTitle?: ReactNode
 }
 
-export function AppLayout({ sidebar, children }: Props) {
+export function AppLayout({ sidebar, children, sidebarTitle }: Props) {
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full">
         <Sidebar>
+          {sidebarTitle ? (
+            <SidebarHeader className="px-4 py-4 text-lg font-semibold">
+              {sidebarTitle}
+            </SidebarHeader>
+          ) : null}
           <SidebarContent>{sidebar}</SidebarContent>
         </Sidebar>
         <SidebarInset>

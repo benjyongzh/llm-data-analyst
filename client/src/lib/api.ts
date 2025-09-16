@@ -188,11 +188,18 @@ export async function deleteDbConnection(id: string, user_id: string) {
 
 export async function getConversations() {
   if (USE_MOCK_CONVERSATIONS) {
-    return mockConversations.map(({ id, title }) => ({ id, title }))
+    return mockConversations.map(({ id, title, db_connection_id }) => ({
+      id,
+      title,
+      db_connection_id,
+    }))
   }
-  return fetchJson<{ id: string; title: string | null }[]>(`${API_BASE}/conversations`, {
-    credentials: 'include',
-  })
+  return fetchJson<{ id: string; title: string | null; db_connection_id?: string | null }[]>(
+    `${API_BASE}/conversations`,
+    {
+      credentials: 'include',
+    }
+  )
 }
 
 export async function getConversation(id: string) {
@@ -201,11 +208,12 @@ export async function getConversation(id: string) {
     const messages = mockMessages
       .filter((m) => m.conversation_id === id)
       .map(({ id, author, user_id, contents }) => ({ id, author, user_id, contents }))
-    return { id, title: convo?.title ?? null, messages }
+    return { id, title: convo?.title ?? null, db_connection_id: convo?.db_connection_id ?? null, messages }
   }
   return fetchJson<{
     id: string
     title: string | null
+    db_connection_id?: string | null
     messages: { id: string; author: string; user_id: string | null; contents: MessageContent[] }[]
   }>(`${API_BASE}/conversations/${id}`, {
     credentials: 'include',

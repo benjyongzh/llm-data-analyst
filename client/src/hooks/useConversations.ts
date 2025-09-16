@@ -22,6 +22,13 @@ export function useConversations() {
     if (!messagesMap[id]) {
       try {
         const convo = await getConversation(id)
+        setConvos((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? { ...item, db_connection_id: convo.db_connection_id ?? item.db_connection_id }
+              : item
+          )
+        )
         setMessagesMap((prev) => ({
           ...prev,
           [id]: convo.messages.map((m) => ({

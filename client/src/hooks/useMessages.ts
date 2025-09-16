@@ -81,9 +81,14 @@ export function useMessages({
         })
         convoId = conversation_id
         setCurrentConvo(convoId)
-        if (title) {
-          setConvos((prev) => [{ id: convoId!, title }, ...prev])
-        }
+        setConvos((prev) => [
+          {
+            id: convoId!,
+            title: title ?? null,
+            db_connection_id: selectedConn,
+          },
+          ...prev.filter((c) => c.id !== convoId),
+        ])
       }
       const id = crypto.randomUUID()
       loadingId = crypto.randomUUID()

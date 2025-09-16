@@ -67,6 +67,7 @@ export type Conversation = {
 export type ConversationListItem = {
   id: string
   title: string | null
+  db_connection_id?: string | null
 }
 
 export type Message = {

@@ -67,3 +67,15 @@ export default tseslint.config([
   },
 ])
 ```
+
+## Theme handling
+
+Wrap the application in `ThemeProvider` (see `src/App.tsx`) to sync the selected appearance with `localStorage` and the document root classes. The `ThemeToggle` component now relies on the provider's `useTheme()` hook to flip between the light and dark themes, respecting the system preference when configured.
+
+## Chat layout
+
+The chat sidebar previously lived inside `src/pages/Chat.tsx`; it now resides in `src/components/ChatSidebar.tsx`. `Chat.tsx` passes connection and conversation handlers into that component so you can iterate on the sidebar UI in isolation.
+
+`AppLayout` also accepts an optional `sidebarTitle` prop that renders inside a `SidebarHeader`, keeping page titles consistent across layouts.
+
+The sidebar now exposes a settings dialog (`src/components/ChatSettingsDialog.tsx`) via a bottom-aligned button. Connections are managed from within that dialog, alongside a logout action that wires through `Chat.tsx` to call the API and reset the current user. A top-level "New chat" button clears the current conversation selection and resets the chosen connection so users can start fresh. The composer/input bar lives in `src/components/ChatInputBar.tsx`, keeping the page focused on data flow rather than UI wiring—its send button stays disabled until a database connection is chosen, the picker highlights when selection is missing, the picker itself locks while viewing an existing conversation so the session stays tied to the recorded connection, and when no conversation is active the composer sits centered with a short call-to-action to guide the user. Both the composer and message list respect the shared `--layout-max-width` variable (see `src/index.css`) so the content column never exceeds 1280px.
