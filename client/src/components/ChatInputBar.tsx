@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Database, Send } from 'lucide-react'
+import { Database, Send, Square } from 'lucide-react'
 import type { DBConnItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -18,7 +18,9 @@ type ChatInputBarProps = {
   inputValue: string
   onInputChange: (value: string) => void
   onSend: () => void
+  onStop: () => void
   sending: boolean
+  streaming: boolean
   connectionLocked: boolean
 }
 
@@ -30,7 +32,9 @@ export function ChatInputBar({
   inputValue,
   onInputChange,
   onSend,
+  onStop,
   sending,
+  streaming,
   connectionLocked,
 }: ChatInputBarProps) {
   const [connSelectOpen, setConnSelectOpen] = useState(false)
@@ -44,7 +48,7 @@ export function ChatInputBar({
     if (connectionLocked) setConnSelectOpen(false)
   }, [connectionLocked])
 
-  const canSend = Boolean(selectedConnId)
+  const canSend = Boolean(selectedConnId) && !streaming
   const highlightConnection = !connectionLocked && !canSend
   const connectionLabel = selectedConn
     ? `Connected to ${selectedConn}`
@@ -139,11 +143,20 @@ export function ChatInputBar({
           }}
         />
         <Button
-          onClick={onSend}
-          disabled={sending || !canSend}
+          onClick={streaming ? onStop : onSend}
+          disabled={streaming ? false : sending || !canSend}
           className={connectionLocked ? undefined : 'w-full sm:w-auto'}
+          variant={streaming ? 'destructive' : 'default'}
+          aria-label={streaming ? 'Stop response' : 'Send message'}
         >
-          <Send className="h-4 w-4" />
+          {streaming ? (
+            <span className="flex items-center gap-2">
+              <Square className="h-4 w-4" />
+              <span className="hidden sm:inline">Stop</span>
+            </span>
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
         </Button>
       </div>
     </div>

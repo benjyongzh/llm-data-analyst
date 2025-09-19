@@ -67,6 +67,8 @@ export default function Chat({ user, onLoggedOut }: Props) {
     error: msgError,
     setError: setMsgError,
     bottomRef,
+    handleStop,
+    streaming,
   } = useMessages({
     user,
     selectedConn,
@@ -247,7 +249,9 @@ export default function Chat({ user, onLoggedOut }: Props) {
             inputValue={input}
             onInputChange={setInput}
             onSend={handleSend}
+            onStop={handleStop}
             sending={sending}
+            streaming={streaming}
             connectionLocked={currentConvo !== null}
           />
         </div>

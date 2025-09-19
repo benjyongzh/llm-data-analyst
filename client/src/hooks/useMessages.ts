@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import { createConversation, startChat } from '@/lib/api'
+import { createConversation, startChat, stopChat } from '@/lib/api'
 import type { Message, User, ConversationListItem } from '@/lib/types'
 import type { WorkflowEvent } from '@/lib/eventSchema'
 import { useWorkflowStream } from './useWorkflowStream'
@@ -56,6 +56,18 @@ export function useMessages({
         ),
       }))
     } else if (event.type === 'done') {
+      if (event.metadata?.stopped) {
+        setMessagesMap((prev) => {
+          const existing = prev[convoId]
+          if (!existing) return prev
+          return {
+            ...prev,
+            [convoId]: existing.map((m) =>
+              m.id === loadingId ? { ...m, pending: false } : m
+            ),
+          }
+        })
+      }
       setStream(null)
     }
   }
@@ -63,6 +75,7 @@ export function useMessages({
   useWorkflowStream(stream?.runId ?? null, stream?.sseUrl ?? null, handleStreamEvent)
 
   const handleSend = async () => {
+    if (stream) return
     const trimmed = input.trim()
     if (!trimmed) return
     setError(null)
@@ -120,5 +133,37 @@ export function useMessages({
     }
   }
 
-  return { messages, input, setInput, handleSend, sending, error, setError, bottomRef }
+  const handleStop = async () => {
+    if (!stream) return
+    const { convoId, loadingId, runId } = stream
+    setStream(null)
+    setMessagesMap((prev) => {
+      const existing = prev[convoId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        [convoId]: existing.map((m) =>
+          m.id === loadingId ? { ...m, pending: false } : m
+        ),
+      }
+    })
+    try {
+      await stopChat(convoId, runId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop response')
+    }
+  }
+
+  return {
+    messages,
+    input,
+    setInput,
+    handleSend,
+    sending,
+    error,
+    setError,
+    bottomRef,
+    handleStop,
+    streaming: stream !== null,
+  }
 }
