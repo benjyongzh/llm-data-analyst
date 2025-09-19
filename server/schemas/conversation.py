@@ -20,6 +20,13 @@ class ConversationQueryRequest(BaseModel):
     model_name: str
 
 
+class ConversationStopRequest(BaseModel):
+    """Request body to stop an in-flight workflow run."""
+
+    conversation_id: str
+    workflow_run_id: str
+
+
 class XAxisSpec(BaseModel):
     """Metadata for the X axis of a chart."""
 

@@ -11,10 +11,12 @@ import {
   mockDbConnections,
 } from './mock'
 
+const metaEnv = (
+  import.meta as ImportMeta & { env?: Record<string, string | undefined> }
+).env
+
 const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE_URL ??
-  process.env.API_BASE_URL ??
-  'http://localhost:8000'
+  metaEnv?.VITE_API_BASE_URL ?? process.env.API_BASE_URL ?? 'http://localhost:8000'
 const USE_MOCK_USER = import.meta.env.VITE_USE_MOCK_USER === 'true'
 const USE_MOCK_CONVERSATIONS =
   import.meta.env.VITE_USE_MOCK_CONVERSATIONS === 'true'
@@ -263,4 +265,16 @@ export async function startChat(
       credentials: 'include',
     }
   )
+}
+
+export async function stopChat(
+  conversation_id: string,
+  workflow_run_id: string
+) {
+  return fetchJson<{ status: string }>(`${API_BASE}/conversations/stop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_id, workflow_run_id }),
+    credentials: 'include',
+  })
 }

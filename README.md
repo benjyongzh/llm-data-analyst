@@ -31,6 +31,9 @@ React + Vite front end and a FastAPI backend.
 - Chat responses stream token-by-token through a Fly.io worker using Redis
   Streams and Server-Sent Events, allowing the UI to render assistant output in
   real time
+- Users can cancel a streaming reply mid-flight; the chat bar switches the send
+  action to a stop control that notifies the worker to halt the active
+  `workflow_run`
 - Chat bubbles display streamed tokens as they arrive, showing partial
   assistant responses even while messages are pending
 - Guardrail checks validate generated SQL and responses, detecting PII or
@@ -138,6 +141,8 @@ JWT cookie unless noted.
   provide a UUID and first prompt; if the ID is new, the response also includes
   a generated title.
 - `POST /conversations/start` – initiate a workflow run and receive an SSE URL
+- `POST /conversations/stop` – signal the worker to cancel an in-flight
+  `workflow_run` and end the SSE stream
 - `POST /conversations/{id}/query` – send a prompt and run the AI workflow. The
   response uses a standard envelope with `status`, `code`, and a `data.message`
   array of parts. Each part is validated using the `TextContent` or

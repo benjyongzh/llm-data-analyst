@@ -9,6 +9,7 @@ from schemas import (
     ConversationCreateRequest,
     ConversationCreateResponse,
     ConversationQueryRequest,
+    ConversationStopRequest,
     QueryResponse,
     QueryResponseData,
     ConversationDetail,
@@ -84,6 +85,27 @@ async def start_chat(
         "workflow_run_id": workflow_run_id,
         "sse_url": f"{stream_base}/stream/{workflow_run_id}",
     }
+
+
+@router.post("/stop", status_code=status.HTTP_202_ACCEPTED)
+async def stop_chat(
+    request: ConversationStopRequest,
+    token_data: dict = Depends(verify_token),
+):
+    try:
+        await conversation_service.verify_conversation_owner(
+            request.conversation_id, token_data["user_id"]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    worker_base = os.environ.get("FLY_WORKER_BASE_URL", "")
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{worker_base}/runs/{request.workflow_run_id}/stop",
+            json={"conversation_id": request.conversation_id},
+        )
+    return {"status": "stopping"}
 
 
 @router.post("/{conversation_id}/query", response_model=QueryResponse)

@@ -98,6 +98,20 @@ async def get_conversation_db_connection(
         )
 
 
+async def verify_conversation_owner(conversation_id: str, user_id: str) -> None:
+    """Ensure the conversation belongs to the provided user."""
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval(
+            "SELECT 1 FROM conversation WHERE id=$1 AND user_id=$2",
+            conversation_id,
+            user_id,
+        )
+        if not exists:
+            raise ValueError("Conversation not found")
+
+
 async def add_message(
     conversation_id: str,
     author: str,
